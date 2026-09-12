@@ -1,0 +1,86 @@
+process.env.JWT_SECRET = 'test-secret-do-not-use-in-prod';
+
+jest.mock('../models/User');
+jest.mock('../config/db', () => ({ query: jest.fn().mockResolvedValue({ rows: [] }) }));
+
+const express = require('express');
+const request = require('supertest');
+const User = require('../models/User');
+const api = require('../routes/api');
+
+function buildApp() {
+  const app = express();
+  app.use(express.json());
+  app.use('/api', api);
+  return app;
+}
+
+beforeEach(() => jest.clearAllMocks());
+
+describe('POST /api/auth/signup', () => {
+  test('rejects a missing password', async () => {
+    const app = buildApp();
+    const res = await request(app).post('/api/auth/signup').send({ name: 'Ada', email: 'ada@example.com' });
+    expect(res.status).toBe(400);
+  });
+
+  test('rejects a short password', async () => {
+    const app = buildApp();
+    const res = await request(app).post('/api/auth/signup').send({ name: 'Ada', email: 'ada@example.com', password: 'short' });
+    expect(res.status).toBe(400);
+  });
+
+  test('rejects an invalid email', async () => {
+    const app = buildApp();
+    const res = await request(app).post('/api/auth/signup').send({ name: 'Ada', email: 'not-an-email', password: 'longenoughpw' });
+    expect(res.status).toBe(400);
+  });
+
+  test('rejects a duplicate email', async () => {
+    User.findByEmail.mockResolvedValue({ id: 1, email: 'ada@example.com' });
+    const app = buildApp();
+    const res = await request(app).post('/api/auth/signup').send({ name: 'Ada', email: 'ada@example.com', password: 'longenoughpw' });
+    expect(res.status).toBe(409);
+  });
+
+  test('creates an account and returns a session token, never the password', async () => {
+    User.findByEmail.mockResolvedValue(null);
+    User.create.mockResolvedValue({ id: 5, name: 'Ada', email: 'ada@example.com', is_admin: false });
+    const app = buildApp();
+    const res = await request(app).post('/api/auth/signup').send({ name: 'Ada', email: 'ada@example.com', password: 'longenoughpw' });
+    expect(res.status).toBe(201);
+    expect(res.body).toHaveProperty('token');
+    expect(res.body).not.toHaveProperty('password');
+    expect(res.body).not.toHaveProperty('password_hash');
+  });
+});
+
+describe('POST /api/auth/login', () => {
+  test('rejects an unknown email without revealing whether the account exists', async () => {
+    User.findByEmail.mockResolvedValue(null);
+    const app = buildApp();
+    const res = await request(app).post('/api/auth/login').send({ email: 'nobody@example.com', password: 'whatever' });
+    expect(res.status).toBe(401);
+    expect(res.body.error).toBe('Incorrect email or password.');
+  });
+});
+
+describe('protected routes without a session', () => {
+  test('GET /api/projects requires authentication', async () => {
+    const app = buildApp();
+    const res = await request(app).get('/api/projects');
+    expect(res.status).toBe(401);
+  });
+
+  test('GET /api/admin/stats requires authentication', async () => {
+    const app = buildApp();
+    const res = await request(app).get('/api/admin/stats');
+    expect(res.status).toBe(401);
+  });
+
+  test('GET /api/admin/stats is still rejected even with a spoofed X-User-Id header', async () => {
+    const app = buildApp();
+    const res = await request(app).get('/api/admin/stats').set('X-User-Id', '1');
+    expect(res.status).toBe(401);
+  });
+});

@@ -1,0 +1,11 @@
+# root ignore — each sub-project also has its own, more specific .gitignore
+node_modules/
+dist/
+build/
+.next/
+.pgdata/
+.vite/
+*.log
+.DS_Store
+Thumbs.db
+.env
