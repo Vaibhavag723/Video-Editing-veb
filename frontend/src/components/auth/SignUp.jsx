@@ -44,7 +44,7 @@ export default function SignUp({ onAuthed, onSignIn, onBrowse }) {
           </label>
           <label className="auth-field">Password
             <span className="auth-pass">
-              <input required type={showPassword ? 'text' : 'password'} minLength="8" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder="At least 8 characters" autoComplete="new-password" />
+              <input required type={showPassword ? 'text' : 'password'} minLength="8" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder="At least 8 characters, with a letter and a number" autoComplete="new-password" />
               <button type="button" className="auth-eye" onClick={() => setShowPassword((s) => !s)} aria-label="Toggle password visibility">{showPassword ? '🙈' : '👁'}</button>
             </span>
           </label>

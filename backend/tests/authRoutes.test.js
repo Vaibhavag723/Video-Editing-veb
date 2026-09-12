@@ -30,16 +30,28 @@ describe('POST /api/auth/signup', () => {
     expect(res.status).toBe(400);
   });
 
+  test('rejects a password with no digit', async () => {
+    const app = buildApp();
+    const res = await request(app).post('/api/auth/signup').send({ name: 'Ada', email: 'ada@example.com', password: 'alletterspw' });
+    expect(res.status).toBe(400);
+  });
+
+  test('rejects a password with no letter', async () => {
+    const app = buildApp();
+    const res = await request(app).post('/api/auth/signup').send({ name: 'Ada', email: 'ada@example.com', password: '12345678' });
+    expect(res.status).toBe(400);
+  });
+
   test('rejects an invalid email', async () => {
     const app = buildApp();
-    const res = await request(app).post('/api/auth/signup').send({ name: 'Ada', email: 'not-an-email', password: 'longenoughpw' });
+    const res = await request(app).post('/api/auth/signup').send({ name: 'Ada', email: 'not-an-email', password: 'longenough1' });
     expect(res.status).toBe(400);
   });
 
   test('rejects a duplicate email', async () => {
     User.findByEmail.mockResolvedValue({ id: 1, email: 'ada@example.com' });
     const app = buildApp();
-    const res = await request(app).post('/api/auth/signup').send({ name: 'Ada', email: 'ada@example.com', password: 'longenoughpw' });
+    const res = await request(app).post('/api/auth/signup').send({ name: 'Ada', email: 'ada@example.com', password: 'longenough1' });
     expect(res.status).toBe(409);
   });
 
@@ -47,7 +59,7 @@ describe('POST /api/auth/signup', () => {
     User.findByEmail.mockResolvedValue(null);
     User.create.mockResolvedValue({ id: 5, name: 'Ada', email: 'ada@example.com', is_admin: false });
     const app = buildApp();
-    const res = await request(app).post('/api/auth/signup').send({ name: 'Ada', email: 'ada@example.com', password: 'longenoughpw' });
+    const res = await request(app).post('/api/auth/signup').send({ name: 'Ada', email: 'ada@example.com', password: 'longenough1' });
     expect(res.status).toBe(201);
     expect(res.body).toHaveProperty('token');
     expect(res.body).not.toHaveProperty('password');
@@ -62,6 +74,19 @@ describe('POST /api/auth/login', () => {
     const res = await request(app).post('/api/auth/login').send({ email: 'nobody@example.com', password: 'whatever' });
     expect(res.status).toBe(401);
     expect(res.body.error).toBe('Incorrect email or password.');
+  });
+
+  test('locks out an account after repeated failed attempts, even from a fresh IP', async () => {
+    // Simulate the login_events audit log already showing 8+ recent failures
+    // for this email — the account-level guard should block the request
+    // before even checking the password, independent of the caller's IP.
+    const db = require('../config/db');
+    db.query.mockResolvedValue({ rows: [{ n: 8 }] });
+    User.findByEmail.mockResolvedValue({ id: 1, email: 'ada@example.com', password_hash: 'irrelevant' });
+    const app = buildApp();
+    const res = await request(app).post('/api/auth/login').send({ email: 'ada@example.com', password: 'whatever' });
+    expect(res.status).toBe(429);
+    expect(User.findByEmail).not.toHaveBeenCalled();
   });
 });
 

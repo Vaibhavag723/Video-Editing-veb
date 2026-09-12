@@ -1,4 +1,4 @@
-const { hashPassword, verifyPassword } = require('../util/hash');
+const { hashPassword, verifyPassword, isStrongPassword } = require('../util/hash');
 
 describe('hashPassword / verifyPassword', () => {
   test('a correct password verifies against its own hash', async () => {
@@ -24,5 +24,20 @@ describe('hashPassword / verifyPassword', () => {
 
   test('a malformed stored value fails closed instead of throwing', async () => {
     await expect(verifyPassword('anything', 'not-a-real-hash')).resolves.toBe(false);
+  });
+});
+
+describe('isStrongPassword', () => {
+  test('accepts a password with letters and a number, 8+ chars', () => {
+    expect(isStrongPassword('abcdefg1')).toBe(true);
+  });
+  test('rejects fewer than 8 characters', () => {
+    expect(isStrongPassword('abc1')).toBe(false);
+  });
+  test('rejects letters-only passwords', () => {
+    expect(isStrongPassword('abcdefgh')).toBe(false);
+  });
+  test('rejects digits-only passwords', () => {
+    expect(isStrongPassword('12345678')).toBe(false);
   });
 });

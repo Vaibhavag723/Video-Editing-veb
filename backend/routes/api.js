@@ -2,13 +2,14 @@ const express = require('express');
 const router = express.Router();
 const crypto = require('crypto');
 const { query } = require('../config/db');
-const { hashPassword, verifyPassword } = require('../util/hash');
+const { hashPassword, verifyPassword, isStrongPassword, WEAK_PASSWORD_MSG } = require('../util/hash');
 const User = require('../models/User');
 const Item = require('../models/Item');
 const PasswordReset = require('../models/PasswordReset');
 const ContactMessage = require('../models/ContactMessage');
 const { sendPasswordResetEmail, sendAdminMessageNotification } = require('../util/email');
 const { signToken } = require('../util/jwt');
+const { sendError } = require('../util/errors');
 const requireAuth = require('../middleware/requireAuth');
 
 // Shared shape for every auth response: never send password data back, and
@@ -20,6 +21,32 @@ const authPayload = (user) => ({
 });
 
 /* ---------- Auth (PostgreSQL) ---------- */
+
+// Shared helper: record a sign-in attempt for the admin audit log.
+async function logLogin(userId, email, success) {
+  try { await query('INSERT INTO login_events (user_id, email, success) VALUES ($1, $2, $3)', [userId, email, !!success]); }
+  catch { /* audit logging is best-effort */ }
+}
+
+// Account-level brute-force guard, layered on top of the IP-based rate
+// limiter in server.js. The IP limiter alone doesn't stop a distributed or
+// botnet attack that spreads guesses for one specific account across many
+// IPs, so this checks the login_events audit log for that email directly.
+const LOGIN_LOCKOUT_THRESHOLD = 8;
+async function recentFailedLogins(email) {
+  try {
+    const { rows } = await query(
+      `SELECT COUNT(*)::int AS n FROM login_events
+        WHERE email = $1 AND success = false AND created_at > now() - interval '15 minutes'`,
+      [email],
+    );
+    return rows[0]?.n || 0;
+  } catch { return 0; } // fail open on audit-log errors — never lock users out due to a logging bug
+}
+
+// Minimum password strength check lives in util/hash.js so signup, password
+// reset, and the admin user-edit form all enforce the same rule.
+
 router.post('/auth/signup', async (req, res) => {
   try {
     const name = String(req.body.name || '').trim();
@@ -27,7 +54,7 @@ router.post('/auth/signup', async (req, res) => {
     const password = String(req.body.password || '');
     if (!name || !email || !password) return res.status(400).json({ error: 'Name, email, and password are required.' });
     if (!/^\S+@\S+\.\S+$/.test(email)) return res.status(400).json({ error: 'Enter a valid email address.' });
-    if (password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters.' });
+    if (!isStrongPassword(password)) return res.status(400).json({ error: WEAK_PASSWORD_MSG });
     if (await User.findByEmail(email)) return res.status(409).json({ error: 'An account already exists for that email.' });
     const user = await User.create(name, email, await hashPassword(password));
     res.status(201).json(authPayload(user));
@@ -36,18 +63,15 @@ router.post('/auth/signup', async (req, res) => {
   }
 });
 
-// Shared helper: record a sign-in attempt for the admin audit log.
-async function logLogin(userId, email, success) {
-  try { await query('INSERT INTO login_events (user_id, email, success) VALUES ($1, $2, $3)', [userId, email, !!success]); }
-  catch { /* audit logging is best-effort */ }
-}
-
 router.post('/auth/login', async (req, res) => {
   try {
     const email = String(req.body.email || '').trim().toLowerCase();
+    if ((await recentFailedLogins(email)) >= LOGIN_LOCKOUT_THRESHOLD) {
+      return res.status(429).json({ error: 'Too many failed attempts for this account. Please wait 15 minutes and try again.' });
+    }
     const user = await User.findByEmail(email);
     if (!user || !(await verifyPassword(String(req.body.password || ''), user.password_hash))) {
-      await logLogin(null, email, false);
+      await logLogin(user?.id || null, email, false);
       return res.status(401).json({ error: 'Incorrect email or password.' });
     }
     await logLogin(user.id, email, true);
@@ -90,7 +114,7 @@ router.post('/auth/reset-password', async (req, res) => {
     const token = String(req.body.token || '').trim();
     const password = String(req.body.password || '');
     if (!token) return res.status(400).json({ error: 'Reset token is required.' });
-    if (password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters.' });
+    if (!isStrongPassword(password)) return res.status(400).json({ error: WEAK_PASSWORD_MSG });
 
     const reset = await PasswordReset.findValid(token);
     if (!reset) return res.status(400).json({ error: 'This reset link is invalid or has expired. Request a new one.' });
@@ -173,7 +197,7 @@ router.post('/contact', async (req, res) => {
 /* ---------- Items ---------- */
 router.get('/items', async (req, res) => {
   try { res.json(await Item.findAll()); }
-  catch (err) { res.status(500).json({ error: err.message }); }
+  catch (err) { sendError(res, 500, err); }
 });
 
 router.post('/items', async (req, res) => {
@@ -181,28 +205,28 @@ router.post('/items', async (req, res) => {
     const name = String(req.body?.name || '').trim();
     if (!name) return res.status(400).json({ error: 'Name required' });
     res.status(201).json(await Item.create(name));
-  } catch (err) { res.status(400).json({ error: err.message }); }
+  } catch (err) { sendError(res, 400, err, 'Invalid request.'); }
 });
 
 router.delete('/items/:id', async (req, res) => {
   try {
     await Item.remove(req.params.id);
     res.json({ success: true });
-  } catch (err) { res.status(400).json({ error: err.message }); }
+  } catch (err) { sendError(res, 400, err, 'Invalid request.'); }
 });
 
 /* ---------- Creative library (data from PostgreSQL) ---------- */
 router.get('/text-templates', async (_req, res) => {
   try { res.json((await query('SELECT * FROM text_templates ORDER BY id')).rows); }
-  catch (err) { res.status(500).json({ error: err.message }); }
+  catch (err) { sendError(res, 500, err); }
 });
 router.get('/stickers', async (_req, res) => {
   try { res.json((await query('SELECT * FROM stickers ORDER BY id')).rows); }
-  catch (err) { res.status(500).json({ error: err.message }); }
+  catch (err) { sendError(res, 500, err); }
 });
 router.get('/music', async (_req, res) => {
   try { res.json((await query('SELECT * FROM music ORDER BY id')).rows); }
-  catch (err) { res.status(500).json({ error: err.message }); }
+  catch (err) { sendError(res, 500, err); }
 });
 
 /* ---------- Cloud-saved (unfinished) projects ----------
@@ -217,7 +241,7 @@ router.get('/projects', requireAuth, async (req, res) => {
       'SELECT id, name, updated_at AS "updatedAt" FROM projects WHERE user_id = $1 ORDER BY updated_at DESC',
       [req.user.id]);
     res.json(rows);
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { sendError(res, 500, err); }
 });
 
 router.get('/projects/:id', requireAuth, async (req, res) => {
@@ -225,7 +249,7 @@ router.get('/projects/:id', requireAuth, async (req, res) => {
     const { rows } = await query('SELECT * FROM projects WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
     if (!rows[0]) return res.status(404).json({ error: 'Project not found' });
     res.json(rows[0]);
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { sendError(res, 500, err); }
 });
 
 router.post('/projects', requireAuth, async (req, res) => {
@@ -237,41 +261,41 @@ router.post('/projects', requireAuth, async (req, res) => {
       [req.user.id, fresh, JSON.stringify(data || {})],
     );
     res.status(201).json(rows[0]);
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { sendError(res, 500, err); }
 });
 
 router.delete('/projects/:id', requireAuth, async (req, res) => {
   try {
     await query('DELETE FROM projects WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
     res.json({ success: true });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { sendError(res, 500, err); }
 });
 
 /* ---------- Public website (CMS, read-only) ---------- */
 router.get('/cms/pages', async (_req, res) => {
   try { res.json((await query('SELECT * FROM site_pages ORDER BY key')).rows); }
-  catch (err) { res.status(500).json({ error: err.message }); }
+  catch (err) { sendError(res, 500, err); }
 });
 router.get('/cms/pages/:key', async (req, res) => {
   try {
     const { rows } = await query('SELECT * FROM site_pages WHERE key = $1', [req.params.key]);
     if (!rows[0]) return res.status(404).json({ error: 'Page not found' });
     res.json(rows[0]);
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { sendError(res, 500, err); }
 });
 router.get('/cms/blog', async (_req, res) => {
   try {
     const { rows } = await query(
       'SELECT id, title, slug, excerpt, content, image, published, created_at, updated_at FROM blog_posts WHERE published = true ORDER BY created_at DESC');
     res.json(rows);
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { sendError(res, 500, err); }
 });
 router.get('/cms/blog/:id', async (req, res) => {
   try {
     const { rows } = await query('SELECT * FROM blog_posts WHERE published = true AND id = $1', [req.params.id]);
     if (!rows[0]) return res.status(404).json({ error: 'Post not found' });
     res.json(rows[0]);
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { sendError(res, 500, err); }
 });
 
 /* ---------- Admin panel ----------

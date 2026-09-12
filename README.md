@@ -97,9 +97,16 @@ cd backend && npm install && npm run lint && npm test   # ESLint + Jest/Supertes
 cd frontend && npm install && npm run lint               # ESLint
 ```
 Backend tests mock the database layer, so they run without a live Postgres connection.
-They cover password hashing, JWT session tokens, the `requireAuth`/`requireAdmin`
-guards, and signup/login validation — including a regression test that a spoofed
-`X-User-Id` header alone can never grant access.
+They cover password hashing, password-strength rules, JWT session tokens, the
+`requireAuth`/`requireAdmin` guards, account-level login lockout, and signup/login
+validation — including a regression test that a spoofed `X-User-Id` header alone
+can never grant access.
+
+## Security
+See [SECURITY.md](./SECURITY.md) for the full rundown of what's protected
+(auth, rate limiting, headers, brute-force lockout, etc.), what's
+intentionally out of scope and why, and the manual steps to take before a
+real deployment.
 
 ## Features (CapCut-style editor)
 - **Import & trim** — set in/out points, jigsaw cuts, frame-step preview

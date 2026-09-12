@@ -20,4 +20,12 @@ const verifyPassword = (password, stored) => new Promise((resolve, reject) => {
   });
 });
 
-module.exports = { hashPassword, verifyPassword };
+// Minimum password strength shared by signup, password reset, and admin
+// password changes: at least 8 characters with a letter and a number, so
+// accounts aren't protected by nothing more than 8 digits or 8 repeated
+// letters.
+const isStrongPassword = (password) =>
+  typeof password === 'string' && password.length >= 8 && /[a-zA-Z]/.test(password) && /[0-9]/.test(password);
+const WEAK_PASSWORD_MSG = 'Password must be at least 8 characters and include a letter and a number.';
+
+module.exports = { hashPassword, verifyPassword, isStrongPassword, WEAK_PASSWORD_MSG };

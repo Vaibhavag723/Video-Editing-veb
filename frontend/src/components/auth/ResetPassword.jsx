@@ -16,7 +16,9 @@ export default function ResetPassword({ token, onDone }) {
   async function submit(e) {
     e.preventDefault();
     if (loading) return;
-    if (password.length < 8) return setError('Password must be at least 8 characters.');
+    if (!/^(?=.*[a-zA-Z])(?=.*[0-9]).{8,}$/.test(password)) {
+      return setError('Password must be at least 8 characters and include a letter and a number.');
+    }
     if (password !== confirm) return setError('Passwords do not match.');
     setError(''); setLoading(true);
     try {
@@ -49,7 +51,7 @@ export default function ResetPassword({ token, onDone }) {
             <p className="auth-lead">Thanks for verifying your identity. Pick a strong password you haven&apos;t used before.</p>
             <label className="auth-field">New password
               <span className="auth-pass">
-                <input required minLength="8" type={show ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="At least 8 characters" autoComplete="new-password" autoFocus />
+                <input required minLength="8" type={show ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="At least 8 characters, with a letter and a number" autoComplete="new-password" autoFocus />
                 <button type="button" className="auth-eye" onClick={() => setShow((s) => !s)} aria-label="Toggle password visibility">{show ? '🙈' : '👁'}</button>
               </span>
             </label>

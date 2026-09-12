@@ -8,7 +8,8 @@
     "db:setup": "node scripts/setup-db.js",
     "create:admin": "node scripts/createAdmin.js",
     "lint": "eslint .",
-    "test": "jest"
+    "test": "jest",
+    "audit": "npm audit --omit=dev"
   },
   "nodemonConfig": {
     "ignore": [
@@ -21,6 +22,9 @@
     "dotenv": "^17.4.2",
     "embedded-postgres": "^18.4.0-beta.17",
     "express": "^4.19.2",
+    "express-rate-limit": "^7.4.1",
+    "helmet": "^8.0.0",
+    "hpp": "^0.2.3",
     "jsonwebtoken": "^9.0.3",
     "nodemailer": "^9.0.6",
     "pg": "^8.13.1"

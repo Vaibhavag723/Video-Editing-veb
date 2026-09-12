@@ -1,9 +1,10 @@
 const express = require('express');
 const router = express.Router();
 const { query } = require('../config/db');
-const { hashPassword } = require('../util/hash');
+const { hashPassword, isStrongPassword, WEAK_PASSWORD_MSG } = require('../util/hash');
 const User = require('../models/User');
 const ContactMessage = require('../models/ContactMessage');
+const { sendError } = require('../util/errors');
 const requireAdmin = require('../middleware/requireAdmin');
 
 // Mounted by routes/api.js at `/admin`. Every route in this module is guarded
@@ -26,13 +27,13 @@ router.get('/stats', async (_req, res) => {
       pages: pages.rows[0].n,
       logins: logins.rows[0].n,
     });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { sendError(res, 500, err); }
 });
 
 /* ---------- User accounts ---------- */
 router.get('/users', async (_req, res) => {
   try { res.json(await User.findAllWithMeta()); }
-  catch (err) { res.status(500).json({ error: err.message }); }
+  catch (err) { sendError(res, 500, err); }
 });
 
 // Edit a user's profile (name / email / optional new password) from the admin
@@ -55,14 +56,14 @@ router.put('/users/:id', async (req, res) => {
 
     let passwordHash = null;
     if (password) {
-      if (password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters.' });
+      if (!isStrongPassword(password)) return res.status(400).json({ error: WEAK_PASSWORD_MSG });
       passwordHash = await hashPassword(password);
     }
 
     const updated = await User.updateUser(targetId, { name, email, passwordHash });
     if (!updated) return res.status(404).json({ error: 'User not found' });
     res.json(updated);
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { sendError(res, 500, err); }
 });
 
 // Change a user's role. The admin role is permanent, so only a promotion
@@ -77,7 +78,7 @@ router.patch('/users/:id/role', async (req, res) => {
     if (targetId === req.adminUser.id) return res.status(400).json({ error: 'You cannot change your own role.' });
     if (!isAdmin) return res.status(400).json({ error: 'Only promotion to Admin is allowed — the admin role is permanent.' });
     res.json(await User.setAdmin(targetId, true));
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { sendError(res, 500, err); }
 });
 
 router.delete('/users/:id', async (req, res) => {
@@ -85,7 +86,7 @@ router.delete('/users/:id', async (req, res) => {
     if (Number(req.params.id) === req.adminUser.id) return res.status(400).json({ error: 'You cannot delete your own admin account.' });
     await query('DELETE FROM users WHERE id = $1', [req.params.id]);
     res.json({ success: true });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { sendError(res, 500, err); }
 });
 
 /* ---------- Login audit ---------- */
@@ -93,19 +94,19 @@ router.get('/login-events', async (_req, res) => {
   try {
     const { rows } = await query('SELECT * FROM login_events ORDER BY created_at DESC LIMIT 200');
     res.json(rows);
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { sendError(res, 500, err); }
 });
 
 /* ---------- Questions from the "Ask a question" form ---------- */
 router.get('/messages', async (_req, res) => {
   try { res.json(await ContactMessage.findAll()); }
-  catch (err) { res.status(500).json({ error: err.message }); }
+  catch (err) { sendError(res, 500, err); }
 });
 
 /* ---------- Site page editor ---------- */
 router.get('/pages', async (_req, res) => {
   try { res.json((await query('SELECT * FROM site_pages ORDER BY key')).rows); }
-  catch (err) { res.status(500).json({ error: err.message }); }
+  catch (err) { sendError(res, 500, err); }
 });
 router.put('/pages/:key', async (req, res) => {
   try {
@@ -119,13 +120,13 @@ router.put('/pages/:key', async (req, res) => {
     );
     if (!rows[0]) return res.status(404).json({ error: 'Page not found' });
     res.json(rows[0]);
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { sendError(res, 500, err); }
 });
 
 /* ---------- Blog CRUD ---------- */
 router.get('/blog', async (_req, res) => {
   try { res.json((await query('SELECT id, title, slug, excerpt, image, published, created_at, updated_at FROM blog_posts ORDER BY created_at DESC')).rows); }
-  catch (err) { res.status(500).json({ error: err.message }); }
+  catch (err) { sendError(res, 500, err); }
 });
 router.post('/blog', async (req, res) => {
   try {
@@ -138,7 +139,7 @@ router.post('/blog', async (req, res) => {
       [title, slug, String(req.body.excerpt || ''), String(req.body.content || ''), String(req.body.image || ''), !!req.body.published],
     );
     res.status(201).json(rows[0]);
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { sendError(res, 500, err); }
 });
 router.put('/blog/:id', async (req, res) => {
   try {
@@ -151,13 +152,13 @@ router.put('/blog/:id', async (req, res) => {
     );
     if (!rows[0]) return res.status(404).json({ error: 'Post not found' });
     res.json(rows[0]);
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { sendError(res, 500, err); }
 });
 router.delete('/posts/:id', async (req, res) => {
   try {
     await query('DELETE FROM blog_posts WHERE id = $1', [req.params.id]);
     res.json({ success: true });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { sendError(res, 500, err); }
 });
 
 module.exports = router;

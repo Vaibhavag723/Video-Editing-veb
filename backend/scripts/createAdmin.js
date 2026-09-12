@@ -1,7 +1,7 @@
 require('dotenv').config();
 const process = require('process');
 const { ensurePool, initDb } = require('../config/db');
-const { hashPassword } = require('../util/hash');
+const { hashPassword, isStrongPassword, WEAK_PASSWORD_MSG } = require('../util/hash');
 const User = require('../models/User');
 
 // Provision an admin account (name, email, password). PostgreSQL assigns the
@@ -47,7 +47,7 @@ function parseArgs(argv) {
     process.exit(1);
   }
   if (!/^\S+@\S+\.\S+$/.test(email)) { console.error('Invalid email:', email); process.exit(1); }
-  if (password.length < 8) { console.error('Password must be at least 8 characters.'); process.exit(1); }
+  if (!isStrongPassword(password)) { console.error(WEAK_PASSWORD_MSG); process.exit(1); }
 
   try {
     await ensurePool();
