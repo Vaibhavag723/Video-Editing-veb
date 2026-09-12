@@ -29,6 +29,16 @@ or rate limiting so it doesn't drift from the code.
 - Google sign-in verifies the credential's signature against Google's
   published JWKS, pins the algorithm to RS256 (no algorithm-confusion
   attack), and checks audience + issuer (`util/googleAuth.js`).
+- The demo Google sign-in (`/auth/google/dev`, used only when `GOOGLE_CLIENT_ID`
+  isn't configured) can only ever create a brand-new account — it explicitly
+  rejects any email that's already registered rather than silently signing
+  the caller into that account. It also defaults to **off** when
+  `NODE_ENV=production`, so a deploy that simply forgets to configure real
+  Google OAuth doesn't leave this route reachable. (Earlier version of this
+  route did neither of those, which amounted to a full authentication
+  bypass — anyone who knew a registered email, including the admin's, could
+  be signed in as that account with no password at all. Fixed; see the
+  regression tests in `tests/authRoutes.test.js`.)
 - The admin role is permanent once granted (no demotion path) and an admin
   can never delete or demote their own account through the API — both
   enforced server-side in `routes/admin.js`, not just hidden in the UI.
@@ -75,12 +85,16 @@ or rate limiting so it doesn't drift from the code.
   it before shipping.
 
 ## Manual steps before a real deployment
-1. Set a long random `JWT_SECRET` (see `.env.example`) — the server refuses
+1. Set `NODE_ENV=production` — this is the master switch for several of the
+   protections above (sanitized error messages, the weak-`JWT_SECRET` boot
+   check, and disabling the demo Google login by default). Nothing else on
+   this list fully applies without it.
+2. Set a long random `JWT_SECRET` (see `.env.example`) — the server refuses
    to boot in production without one.
-2. Set `ALLOWED_ORIGINS` to your real frontend domain(s).
-3. Set `ADMIN_PASSWORD` explicitly, or check the server log for the
+3. Set `ALLOWED_ORIGINS` to your real frontend domain(s).
+4. Set `ADMIN_PASSWORD` explicitly, or check the server log for the
    generated one on first boot and change it from the admin panel.
-4. Run `npm audit` (`npm run audit` in `backend/`) before shipping and
+5. Run `npm audit` (`npm run audit` in `backend/`) before shipping and
    whenever dependencies change.
-5. Put the API behind HTTPS (a reverse proxy or your host's TLS
+6. Put the API behind HTTPS (a reverse proxy or your host's TLS
    termination) — nothing here encrypts transport on its own.

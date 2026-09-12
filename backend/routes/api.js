@@ -159,19 +159,39 @@ router.post('/auth/google', async (req, res) => {
   } catch { res.status(500).json({ error: 'Unable to sign in with Google.' }); }
 });
 
-// Demo route, active ONLY while no real Google client id is configured.
+// Demo route, active ONLY while no real Google client id is configured, and
+// disabled by default in production even then (see GOOGLE_DEV_LOGIN below).
+//
+// SECURITY: this must never be allowed to sign in to an EXISTING account.
+// It only creates a brand-new throwaway demo account per email; if that
+// email is already registered it is rejected outright. Without that check,
+// anyone who knows (or guesses, e.g. an admin's public contact email) a
+// registered email could be signed in as that account with no password —
+// a full authentication bypass, not just a "demo" feature.
 router.post('/auth/google/dev', async (req, res) => {
   try {
     if (process.env.GOOGLE_CLIENT_ID) return res.status(400).json({ error: 'Google login is configured — use the real sign-in button.' });
-    if (String(process.env.GOOGLE_DEV_LOGIN ?? '1') === '0') return res.status(403).json({ error: 'Demo Google sign-in is disabled on the server.' });
+    // Opt-in only in production: unset/unrecognized GOOGLE_DEV_LOGIN means
+    // "off" in production and "on" everywhere else, so a deploy that simply
+    // forgets to configure real Google OAuth doesn't silently ship this
+    // backdoor. Set GOOGLE_DEV_LOGIN=1 explicitly to allow it in production.
+    const devLoginEnabled = process.env.NODE_ENV === 'production'
+      ? process.env.GOOGLE_DEV_LOGIN === '1'
+      : String(process.env.GOOGLE_DEV_LOGIN ?? '1') !== '0';
+    if (!devLoginEnabled) return res.status(403).json({ error: 'Demo Google sign-in is disabled on the server.' });
 
     const name = String(req.body.name || '').trim().slice(0, 120);
     const email = String(req.body.email || '').trim().toLowerCase();
     if (!name || !email) return res.status(400).json({ error: 'Name and email are required.' });
     if (!/^\S+@\S+\.\S+$/.test(email)) return res.status(400).json({ error: 'Enter a valid email address.' });
 
+    // Never sign in to an existing account through this route — see above.
+    if (await User.findByEmail(email)) {
+      return res.status(409).json({ error: 'That email already has an account. Sign in with your password instead.' });
+    }
+
     const randomHash = await hashPassword(crypto.randomBytes(24).toString('hex'));
-    let user = await User.findByEmail(email) || await User.create(name, email, randomHash);
+    const user = await User.create(name, email, randomHash);
     await logLogin(user.id, email, true);
     res.json(authPayload(user));
   } catch { res.status(500).json({ error: 'Unable to sign in with the demo Google account.' }); }

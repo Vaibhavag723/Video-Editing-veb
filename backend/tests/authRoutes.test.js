@@ -90,6 +90,41 @@ describe('POST /api/auth/login', () => {
   });
 });
 
+describe('POST /api/auth/google/dev (demo Google sign-in)', () => {
+  const OLD_ENV = process.env;
+  beforeEach(() => { process.env = { ...OLD_ENV }; delete process.env.GOOGLE_CLIENT_ID; });
+  afterAll(() => { process.env = OLD_ENV; });
+
+  test('never signs in to an existing account — only creates a brand-new one', async () => {
+    // This is the critical regression test: without this check, anyone who
+    // knows a registered email (e.g. the admin's) could be signed in as that
+    // account through this "demo" route with no password at all.
+    User.findByEmail.mockResolvedValue({ id: 1, email: 'admin@cutroom.com', is_admin: true });
+    const app = buildApp();
+    const res = await request(app).post('/api/auth/google/dev').send({ name: 'Attacker', email: 'admin@cutroom.com' });
+    expect(res.status).toBe(409);
+    expect(User.create).not.toHaveBeenCalled();
+  });
+
+  test('is disabled by default in production even without a Google client id', async () => {
+    process.env.NODE_ENV = 'production';
+    User.findByEmail.mockResolvedValue(null);
+    const app = buildApp();
+    const res = await request(app).post('/api/auth/google/dev').send({ name: 'Ada', email: 'ada@example.com' });
+    expect(res.status).toBe(403);
+    expect(User.create).not.toHaveBeenCalled();
+  });
+
+  test('creates a fresh demo account when the email is not already registered', async () => {
+    User.findByEmail.mockResolvedValue(null);
+    User.create.mockResolvedValue({ id: 9, name: 'Ada', email: 'ada@example.com', is_admin: false });
+    const app = buildApp();
+    const res = await request(app).post('/api/auth/google/dev').send({ name: 'Ada', email: 'ada@example.com' });
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty('token');
+  });
+});
+
 describe('protected routes without a session', () => {
   test('GET /api/projects requires authentication', async () => {
     const app = buildApp();
