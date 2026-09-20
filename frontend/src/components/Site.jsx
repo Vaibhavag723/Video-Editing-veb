@@ -184,12 +184,14 @@ export default function Site({ user, onLogin, onSignUp, onOpenEditor, onOpenAdmi
             </div>
             {!open && <div className="post-grid">
               {posts.length === 0 && <p className="site-muted">No posts published yet.</p>}
-              {posts.map((post) => (
-                <button key={post.id} type="button" className="post-card" onClick={() => setOpen(post)}>
-                  {post.image && <img src={post.image} alt="" />}
-                  <b>{post.title}</b>
-                  <p>{post.excerpt || post.content}</p>
-                </button>
+              {posts.map((post, i) => (
+                <Reveal key={post.id} className="post-reveal" delay={0.04 + i * 0.07}>
+                  <button type="button" className="post-card" onClick={() => setOpen(post)}>
+                    {post.image && <img src={post.image} alt="" />}
+                    <b>{post.title}</b>
+                    <p>{post.excerpt || post.content}</p>
+                  </button>
+                </Reveal>
               ))}
             </div>}
             {open && (
@@ -219,7 +221,11 @@ export default function Site({ user, onLogin, onSignUp, onOpenEditor, onOpenAdmi
             </div>
             {getPage(page).body.includes('✦') && (
               <div className="site-bullets">
-                {renderBullets(getPage(page).body).map((b, i) => <span key={i} className="site-bullet">{b}</span>)}
+                {renderBullets(getPage(page).body).map((b, i) => (
+                  <Reveal key={i} as="span" className="bullet-reveal" delay={0.04 + i * 0.06}>
+                    <span className="site-bullet">{b}</span>
+                  </Reveal>
+                ))}
               </div>
             )}
             {page === 'features' && <FeatureCards />}

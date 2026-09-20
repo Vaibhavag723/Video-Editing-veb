@@ -44,7 +44,7 @@ export default function Library({
       {!loading && error && <p className="lib-error">{error}</p>}
 
       {!loading && !error && tab === 'templates' && (
-        <div className="lib-grid templates">
+        <div className="lib-panel lib-grid templates">
           {templates.length === 0 && <p className="hint">No templates yet.</p>}
           {templates.map((t) => (
             <button key={t.id} type="button" className="tpl-card" disabled={!enabled}
@@ -57,7 +57,7 @@ export default function Library({
       )}
 
       {!loading && !error && tab === 'stickers' && (
-        <div className="lib-grid stickers">
+        <div className="lib-panel lib-grid stickers">
           {stickers.length === 0 && <p className="hint">No stickers yet.</p>}
           {stickers.map((s) => (
             <button key={s.id} type="button" className="stk" disabled={!enabled}
@@ -69,7 +69,7 @@ export default function Library({
       )}
 
       {!loading && !error && tab === 'music' && (
-        <div className="lib-list music">
+        <div className="lib-panel lib-list music">
           {tracks.length === 0 && <p className="hint">No tracks yet.</p>}
           {tracks.map((tr) => {
             const active = music?.id === tr.id;
@@ -94,9 +94,9 @@ export default function Library({
       )}
 
       {!loading && !error && tab === 'cloud' && (
-        <div className="lib-list cloud">
-          <button type="button" className="cloud-save" disabled={cloudSaving} onClick={onSaveProject}>
-            {cloudSaving ? 'Saving…' : '☁ Save this project'}
+        <div className="lib-panel lib-list cloud">
+          <button type="button" className={`cloud-save${cloudSaving ? ' busy' : ''}`} disabled={cloudSaving} onClick={onSaveProject}>
+            <i className="btn-spinner" aria-hidden="true" />{cloudSaving ? 'Saving…' : '☁ Save this project'}
           </button>
           <p className="hint">Unfinished edits are saved to the cloud and resumed in any browser.</p>
           {projects.length === 0 && <p className="hint">No saved projects yet.</p>}

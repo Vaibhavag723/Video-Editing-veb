@@ -375,3 +375,79 @@
   .workspace{ padding:16px 14px; }
   .preview{ min-height:280px; }
 }
+
+/* =========================================================================
+   Motion — entrances, the notice line, library panels and busy states.
+   The keyframes only describe a `from` state, so each animation settles back
+   onto the element's own styles and hover transforms keep working afterwards.
+   `animation-fill-mode:backwards` hides the element during its delay only.
+   ========================================================================= */
+@keyframes ed-rise-in{ from{ opacity:0; transform:translateY(10px); } }
+@keyframes ed-pop-in{ from{ opacity:0; transform:translateY(8px) scale(.97); } }
+@keyframes ed-spin{ to{ transform:rotate(360deg); } }
+@keyframes ed-sweep{ from{ background-position:-160% 0; } to{ background-position:260% 0; } }
+
+.editor-header{ animation:ed-rise-in .36s cubic-bezier(.22,1,.36,1) backwards; }
+.editor-main > *{ animation:ed-rise-in .44s cubic-bezier(.22,1,.36,1) backwards; }
+.editor-main > .media-panel{ animation-delay:.05s; }
+.editor-main > .workspace{ animation-delay:.12s; }
+.editor-main > .inspector{ animation-delay:.19s; }
+
+/* status line — re-keyed in App.jsx so it replays on every new message */
+.workspace .notice{ animation:ed-rise-in .3s ease backwards; }
+
+.transport button:active:not(:disabled){ transform:scale(.93); }
+
+/* creative library: tab panels + their cards */
+.library .lib-panel{ animation:ed-rise-in .3s ease backwards; }
+.lib-grid > *{ animation:ed-pop-in .34s cubic-bezier(.22,1,.36,1) backwards; }
+.lib-grid > :nth-child(1){ animation-delay:0s }   .lib-grid > :nth-child(2){ animation-delay:.04s }
+.lib-grid > :nth-child(3){ animation-delay:.08s } .lib-grid > :nth-child(4){ animation-delay:.12s }
+.lib-grid > :nth-child(5){ animation-delay:.16s } .lib-grid > :nth-child(6){ animation-delay:.2s }
+.lib-grid > :nth-child(7){ animation-delay:.24s } .lib-grid > :nth-child(8){ animation-delay:.28s }
+.lib-grid > :nth-child(n+9){ animation-delay:.32s }
+.lib-list > *{ animation:ed-pop-in .3s ease backwards; }
+.audio-lib{ animation:ed-rise-in .26s ease backwards; }
+.overlay-list .overlay{ animation:ed-pop-in .26s ease backwards; }
+.cut-list span{ animation:ed-pop-in .26s ease backwards; }
+
+/* busy states — spinner ring + a light sweeping across the export button */
+.btn-spinner{
+  display:none; width:11px; height:11px; margin-right:7px; flex:0 0 auto;
+  border:2px solid currentColor; border-top-color:transparent; border-radius:50%;
+  vertical-align:-1px; animation:ed-spin .7s linear infinite;
+}
+.save-button.busy .btn-spinner,
+.export-button.busy .btn-spinner,
+.cloud-save.busy .btn-spinner{ display:inline-block; }
+.header-actions .export-button.busy{ position:relative; overflow:hidden; }
+.header-actions .export-button.busy::after{
+  content:''; position:absolute; inset:0; pointer-events:none;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.55),transparent);
+  background-repeat:no-repeat; background-size:60% 100%;
+  animation:ed-sweep 1.15s linear infinite;
+}
+
+/* ---------- overlay animation picker (inspector) ---------- */
+.overlay-list .overlay{ display:flex; align-items:center; gap:6px; }
+.overlay-list .overlay .overlay-text{ min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.overlay-list .overlay .overlay-anim{
+  margin-left:auto; flex:0 0 auto; font-style:normal; font-size:9px; font-weight:800;
+  letter-spacing:.06em; text-transform:uppercase; color:var(--c-accent);
+  border:1px solid #00f0c855; border-radius:999px; padding:2px 6px; background:#00f0c812;
+}
+.anim-picker{ margin:12px 0 4px; display:flex; flex-direction:column; gap:9px; }
+.anim-picker .anim-row{ display:flex; align-items:center; justify-content:space-between; gap:10px; color:#9a9aa6; font-size:11px; font-weight:700; }
+.anim-picker .anim-row b{ color:var(--c-accent); font-family:"DM Mono",monospace; font-size:11px; }
+.anim-picker select{
+  flex:1; max-width:150px; padding:7px 9px; border:1px solid var(--c-border);
+  border-radius:var(--radius-sm); background:var(--c-bg2); color:#fff; font:inherit; font-size:12px;
+}
+.anim-picker input[type=range]{ flex:1; max-width:150px; accent-color:var(--c-accent); }
+.anim-picker .anim-hint{ margin:2px 0 0; color:#71717c; font-size:10.5px; line-height:1.5; }
+
+@media(prefers-reduced-motion:reduce){
+  .editor-header,.editor-main > *,.workspace .notice,.library .lib-panel,.lib-grid > *,
+  .lib-list > *,.audio-lib,.overlay-list .overlay,.cut-list span,.btn-spinner{ animation:none; }
+  .header-actions .export-button.busy::after{ display:none; }
+}

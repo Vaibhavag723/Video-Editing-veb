@@ -21,6 +21,43 @@ const time = (value = 0) => {
 let overlayCounter = 0;
 let audioCounter = 0;
 
+/* ---------- Overlay animation presets ----------
+   The presets are evaluated while the overlays are drawn onto the export
+   canvas, so the same motion shows up in the preview and is recorded into the
+   exported .webm (the export records that very canvas).                    */
+const OVERLAY_ANIMATIONS = [
+  { id: 'none', label: 'None' },
+  { id: 'fade', label: 'Fade In' },
+  { id: 'slide-up', label: 'Slide Up' },
+  { id: 'zoom-out', label: 'Zoom Out' },
+];
+const ANIM_DEFAULTS = { anim: 'none', animDur: 0.6, animDelay: 0 };
+
+const animationLabel = (id) =>
+  (OVERLAY_ANIMATIONS.find((a) => a.id === id) || OVERLAY_ANIMATIONS[0]).label;
+const animDuration = (o) => (Number.isFinite(o?.animDur) && o.animDur > 0 ? o.animDur : ANIM_DEFAULTS.animDur);
+const animDelay = (o) => (Number.isFinite(o?.animDelay) ? o.animDelay : 0);
+const isAnimated = (o) => Boolean(o?.anim) && o.anim !== 'none';
+
+/**
+ * Eased 0→1 progress of an overlay's entrance, `elapsed` seconds after the in
+ * point. While paused (scrubbing / editing) the settled state is shown so the
+ * layer stays visible and stays draggable.
+ */
+function overlayProgress(o, elapsed, live) {
+  if (!isAnimated(o) || !live) return 1;
+  const p = Math.min(1, Math.max(0, (elapsed - animDelay(o)) / animDuration(o)));
+  return p * p * (3 - 2 * p); // smoothstep easing
+}
+
+/** Per-frame transform for one overlay: opacity + vertical offset + zoom. */
+function overlayMotion(o, elapsed, live) {
+  const p = overlayProgress(o, elapsed, live);
+  if (o.anim === 'slide-up') return { alpha: p, dy: (1 - p) * (o.size || 48) * 0.9, scale: 1 };
+  if (o.anim === 'zoom-out') return { alpha: p, dy: 0, scale: 1.6 - 0.6 * p };
+  return { alpha: p, dy: 0, scale: 1 };
+}
+
 function Control({ label, value, onChange, disabled, min, max, step = 1, unit = '%' }) {
   return (
     <div className="control">
@@ -171,29 +208,37 @@ function App() {
     ctx.filter = filter;
     ctx.drawImage(video, (w - dw) / 2, (h - dh) / 2, dw, dh);
     ctx.restore();
+    // Entrance animations are evaluated against the playhead (relative to the
+    // in point) so the frame the editor shows is the frame the export records.
+    const at = Number.isFinite(video.currentTime) ? video.currentTime : current;
+    const live = playing || exporting;
     overlays.forEach((o) => {
+      const { alpha, dy, scale: zoom } = overlayMotion(o, at - inPoint, live);
+      if (alpha <= 0.001) return; // not on screen yet — nothing to draw
       ctx.save();
-      const x = o.x * w, y = o.y * h;
+      ctx.globalAlpha = alpha;
+      ctx.translate(o.x * w, o.y * h + dy);
+      ctx.scale(zoom, zoom);
       if (o.kind === 'sticker') {
         ctx.font = `${o.size}px "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText(o.glyph || '✨', x, y);
+        ctx.fillText(o.glyph || '✨', 0, 0);
         if (o.id === selectedOverlay) {
           const m = ctx.measureText(o.glyph || '✨');
           ctx.strokeStyle = '#00f0c8'; ctx.lineWidth = 1.5;
-          ctx.strokeRect(x - m.width / 2 - 7, y - o.size / 2 - 5, m.width + 14, o.size + 10);
+          ctx.strokeRect(-m.width / 2 - 7, -o.size / 2 - 5, m.width + 14, o.size + 10);
         }
       } else {
         ctx.font = `${o.size}px ${o.font || 'Inter'}, Arial, sans-serif`;
         ctx.fillStyle = o.color || '#ffffff';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText(o.text, x, y);
+        ctx.fillText(o.text, 0, 0);
         if (o.id === selectedOverlay) {
           const m = ctx.measureText(o.text);
           ctx.strokeStyle = '#00f0c8'; ctx.lineWidth = 1.5;
-          ctx.strokeRect(x - m.width / 2 - 6, y - o.size / 2 - 4, m.width + 12, o.size + 8);
+          ctx.strokeRect(-m.width / 2 - 6, -o.size / 2 - 4, m.width + 12, o.size + 8);
         }
       }
       ctx.restore();
@@ -248,22 +293,31 @@ function App() {
 
   function addOverlay() {
     commit(); overlayCounter += 1;
-    const o = { id: overlayCounter, text: 'Add text', x: 0.5, y: 0.5, size: 48, color: '#ffffff' };
+    const o = { id: overlayCounter, text: 'Add text', x: 0.5, y: 0.5, size: 48, color: '#ffffff', ...ANIM_DEFAULTS };
     setOverlays([...overlays, o]); setSelectedOverlay(o.id); setNotice('Drag text on the preview to position it.');
   }
   function updateOverlay(id, patch) { setOverlays(overlays.map((o) => (o.id === id ? { ...o, ...patch } : o))); }
+  function setAnimation(id, anim) {
+    const current = overlays.find((o) => o.id === id);
+    if (!current) return;
+    commit();
+    updateOverlay(id, { anim, animDur: animDuration(current), animDelay: animDelay(current) });
+    setNotice(isAnimated({ anim })
+      ? `Animation: ${animationLabel(anim)} — plays from the in point (${time(inPoint)}) and is baked into the export.`
+      : 'Animation removed from this layer.');
+  }
   function removeOverlay(id) { commit(); setOverlays(overlays.filter((o) => o.id !== id)); setSelectedOverlay((c) => (c === id ? null : c)); }
 
   /* ---- Creative library helpers (from PostgreSQL) ---- */
   function addTemplateText(template) {
     commit(); overlayCounter += 1;
-    const o = { id: overlayCounter, kind: 'text', text: template.content, x: 0.5, y: 0.42, size: template.font_size || 48, color: template.color || '#ffffff', font: template.font || 'Inter', templateId: template.id };
+    const o = { id: overlayCounter, kind: 'text', text: template.content, x: 0.5, y: 0.42, size: template.font_size || 48, color: template.color || '#ffffff', font: template.font || 'Inter', templateId: template.id, ...ANIM_DEFAULTS };
     setOverlays([...overlays, o]); setSelectedOverlay(o.id);
     setNotice(`Template “${template.title}” added — drag to position it.`);
   }
   function addSticker(st) {
     commit(); overlayCounter += 1;
-    const o = { id: overlayCounter, kind: 'sticker', glyph: st.glyph, x: 0.5, y: 0.5, size: st.size || 64 };
+    const o = { id: overlayCounter, kind: 'sticker', glyph: st.glyph, x: 0.5, y: 0.5, size: st.size || 64, ...ANIM_DEFAULTS };
     setOverlays([...overlays, o]); setSelectedOverlay(o.id);
     setNotice('Sticker added — drag to place it.');
   }
@@ -614,8 +668,8 @@ function App() {
         <button className="icon" disabled={!enabled} onClick={undo} title="Undo (Ctrl+Z)">↺</button>
         <button className="icon" disabled={!enabled} onClick={redo} title="Redo (Ctrl+Y)">↻</button>
         <button className="save-button" disabled={!enabled} onClick={saveProject}>⬇ JSON</button>
-        <button className="save-button cloud" disabled={cloudSaving} onClick={saveToCloud} title="Save unfinished project to the cloud">{cloudSaving ? 'Saving…' : '☁ Save'}</button>
-        <button className="export-button" disabled={!enabled || exporting} onClick={exportVideo}>{exporting ? 'Exporting…' : `Export ${res.w}×${res.h}`}</button>
+        <button className={`save-button cloud${cloudSaving ? ' busy' : ''}`} disabled={cloudSaving} onClick={saveToCloud} title="Save unfinished project to the cloud"><i className="btn-spinner" aria-hidden="true" />{cloudSaving ? 'Saving…' : '☁ Save'}</button>
+        <button className={`export-button${exporting ? ' busy' : ''}`} disabled={!enabled || exporting} onClick={exportVideo}><i className="btn-spinner" aria-hidden="true" />{exporting ? 'Exporting…' : `Export ${res.w}×${res.h}`}</button>
       </div>
     </header>
     <main className="editor-main">
@@ -642,7 +696,7 @@ function App() {
         <button className="add-text" disabled={!enabled} onClick={addOverlay}>＋ Add text</button>
         <div className="overlay-list">{overlays.map((o) => {
           const label = o.kind === 'sticker' ? `${o.glyph} Sticker` : (o.text || 'Text');
-          return <div key={o.id} className={o.id === selectedOverlay ? 'overlay sel' : 'overlay'} onClick={() => setSelectedOverlay(o.id)}>{label}</div>;
+          return <div key={o.id} className={o.id === selectedOverlay ? 'overlay sel' : 'overlay'} onClick={() => setSelectedOverlay(o.id)}><span className="overlay-text">{label}</span>{isAnimated(o) && <em className="overlay-anim">{animationLabel(o.anim)}</em>}</div>;
         })}</div>
       </aside>      <section className="workspace">
         <div className="preview" onPointerDown={onCanvasDown} onPointerMove={onCanvasMove} onPointerUp={onCanvasUp} onPointerLeave={onCanvasUp}>
@@ -657,7 +711,7 @@ function App() {
             <button className="fs" onClick={toggleFullscreen} title="Fullscreen (F)">{fullscreen ? '⤡' : '⛶'}</button>
           </> : <div className="empty"><span>▶</span><h1>Start a new cut</h1><p>Import an MP4, WebM, or MOV video to edit here.</p><button className="pick" onClick={() => filesRef.current?.click()}>Choose a video</button></div>}
         </div>
-        <p className="notice">{notice}</p>
+        <p className="notice" key={notice}>{notice}</p>
         <div className="transport">
           <button disabled={!enabled} onClick={() => stepFrame(-1)} title="Previous frame">⏮</button>
           <button disabled={!enabled} onClick={togglePlay} title="Play / Pause (Space)">{playing ? '❚❚' : '▶'}</button>
@@ -732,6 +786,22 @@ function App() {
               <label>Color <input type="color" value={selected.color} onChange={(e) => updateOverlay(selected.id, { color: e.target.value })} /></label>
             </div>
           </>}
+          <div className="anim-picker">
+            <label className="anim-row">Animation
+              <select value={selected.anim || 'none'} onChange={(e) => setAnimation(selected.id, e.target.value)}>
+                {OVERLAY_ANIMATIONS.map((a) => <option key={a.id} value={a.id}>{a.label}</option>)}
+              </select>
+            </label>
+            {isAnimated(selected) && <>
+              <label className="anim-row">Duration <b>{animDuration(selected).toFixed(1)}s</b>
+                <input type="range" min="0.2" max="3" step="0.1" value={animDuration(selected)} onChange={(e) => updateOverlay(selected.id, { animDur: Number(e.target.value) })} />
+              </label>
+              <label className="anim-row">Delay <b>{animDelay(selected).toFixed(1)}s</b>
+                <input type="range" min="0" max="5" step="0.1" value={animDelay(selected)} onChange={(e) => updateOverlay(selected.id, { animDelay: Number(e.target.value) })} />
+              </label>
+              <p className="anim-hint">Starts at the in point ({time(inPoint)}) — press ▶ to preview, and the motion is saved in the export.</p>
+            </>}
+          </div>
           <button className="danger" onClick={() => removeOverlay(selected.id)}>Delete</button>
         </div>}
       </aside>
