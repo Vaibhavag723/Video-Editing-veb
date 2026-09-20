@@ -4,7 +4,6 @@ const crypto = require('crypto');
 const { query } = require('../config/db');
 const { hashPassword, verifyPassword, isStrongPassword, WEAK_PASSWORD_MSG } = require('../util/hash');
 const User = require('../models/User');
-const Item = require('../models/Item');
 const PasswordReset = require('../models/PasswordReset');
 const ContactMessage = require('../models/ContactMessage');
 const { sendPasswordResetEmail, sendAdminMessageNotification } = require('../util/email');
@@ -212,27 +211,6 @@ router.post('/contact', async (req, res) => {
     sendAdminMessageNotification({ name, email, subject, message }).catch(() => {});
     res.status(201).json({ message: 'Thanks — your question was sent. We usually reply within 1–2 days.' });
   } catch { res.status(500).json({ error: 'Unable to submit your question.' }); }
-});
-
-/* ---------- Items ---------- */
-router.get('/items', async (req, res) => {
-  try { res.json(await Item.findAll()); }
-  catch (err) { sendError(res, 500, err); }
-});
-
-router.post('/items', async (req, res) => {
-  try {
-    const name = String(req.body?.name || '').trim();
-    if (!name) return res.status(400).json({ error: 'Name required' });
-    res.status(201).json(await Item.create(name));
-  } catch (err) { sendError(res, 400, err, 'Invalid request.'); }
-});
-
-router.delete('/items/:id', async (req, res) => {
-  try {
-    await Item.remove(req.params.id);
-    res.json({ success: true });
-  } catch (err) { sendError(res, 400, err, 'Invalid request.'); }
 });
 
 /* ---------- Creative library (data from PostgreSQL) ---------- */

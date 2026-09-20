@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import Library from './components/Library';
-import { getCloudProjects, saveCloudProject, getCloudProject, deleteCloudProject, getMusicList } from './api';
+import {
+  getCloudProjects, saveCloudProject, getCloudProject, deleteCloudProject, getMusicList,
+  setSessionToken, clearSessionToken, setOnSessionExpired,
+} from './api';
 import SignIn from './components/auth/SignIn';
 import SignUp from './components/auth/SignUp';
 import CutTools from './components/CutTools';
@@ -84,6 +87,19 @@ function App() {
   // When the app is opened from the emailed "forgot password" link (/?reset=TOKEN)
   // the token is captured here and the reset screen is shown instead of the site.
   const [resetToken, setResetToken] = useState(() => new URLSearchParams(window.location.search).get('reset'));
+
+  // If any request comes back 401 (expired token, deleted account, server
+  // restart), drop the stale session and send the user to sign in rather than
+  // leaving the UI looking logged-in while every action silently fails.
+  useEffect(() => {
+    setOnSessionExpired(() => {
+      setUser(null);
+      setHistory([]);
+      setRoute('signin');
+    });
+    return () => setOnSessionExpired(null);
+  }, []);
+
   // Navigate to `next`, remembering the current view so Back can return to it.
   const go = (next) => { if (next !== route) setHistory((h) => [...h, route]); setRoute(next); };
   const back = () => {
@@ -541,8 +557,21 @@ function App() {
     }
   }
 
-  const authed = (u) => { setUser(u); setHistory([]); setRoute('home'); };
-  const logout = () => { setUser(null); setHistory([]); setRoute('signin'); };
+  // The server returns `{ ...user, token }` on signup/login. The token has to
+  // be handed to api.js or every authenticated request (cloud projects, admin)
+  // goes out without an Authorization header and is rejected with 401.
+  const authed = (u) => {
+    setSessionToken(u?.token);
+    setUser(u);
+    setHistory([]);
+    setRoute('home');
+  };
+  const logout = () => {
+    clearSessionToken();
+    setUser(null);
+    setHistory([]);
+    setRoute('signin');
+  };
   // Password-reset screen (deep-linked from the email). Runs before the auth
   // checks so it works for signed-out visitors; on completion the query string
   // token is removed and the user is taken to the sign-in screen.
