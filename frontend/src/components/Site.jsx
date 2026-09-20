@@ -4,6 +4,7 @@ import FaqPage from './site/FaqPage';
 import AskPage from './site/AskPage';
 import Footer from './Footer';
 import Reveal from './site/landing/Reveal.jsx';
+import PricingCards from './site/PricingCards';
 import EditorMock from './site/landing/EditorMock.jsx';
 import { PlayRoundedIcon, ArrowRightIcon, ZapIcon, LinkIcon, CloudIcon } from './site/landing/icons.jsx';
 
@@ -213,13 +214,17 @@ export default function Site({ user, onLogin, onSignUp, onOpenEditor, onOpenAdmi
             <div className="site-hero">
               <p className="site-eyebrow">{labels[page]}</p>
               <h1>{getPage(page).hero || getPage(page).title}</h1>
-              {getPage(page).body.includes('✦') ? null : <p className="site-sub">{getPage(page).body}</p>}
+              {page !== 'pricing' && !getPage(page).body.includes('✦') && (
+                <p className="site-sub">{getPage(page).body}</p>
+              )}
               <div className="site-cta">
                 <button type="button" className="site-btn solid" onClick={startCta}>Start editing →</button>
                 {!user && <button type="button" className="site-btn ghost" onClick={onSignUp}>Create account</button>}
               </div>
             </div>
-            {getPage(page).body.includes('✦') && (
+            {page === 'pricing' ? (
+              <PricingCards onCta={startCta} />
+            ) : (getPage(page).body.includes('✦') ? (
               <div className="site-bullets">
                 {renderBullets(getPage(page).body).map((b, i) => (
                   <Reveal key={i} as="span" className="bullet-reveal" delay={0.04 + i * 0.06}>
@@ -227,7 +232,7 @@ export default function Site({ user, onLogin, onSignUp, onOpenEditor, onOpenAdmi
                   </Reveal>
                 ))}
               </div>
-            )}
+            ) : null)}
             {page === 'features' && <FeatureCards />}
           </section>
         )}
