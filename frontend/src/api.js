@@ -136,9 +136,6 @@ export function deleteCloudProject(id) {
 export function getSitePages() {
   return request(`${BASE_URL}/cms/pages`);
 }
-export function getSitePage(key) {
-  return request(`${BASE_URL}/cms/pages/${encodeURIComponent(key)}`);
-}
 export function getSitePosts() {
   return request(`${BASE_URL}/cms/blog`);
 }

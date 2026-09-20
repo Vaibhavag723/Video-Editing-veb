@@ -274,13 +274,6 @@ router.get('/cms/pages', async (_req, res) => {
   try { res.json((await query('SELECT * FROM site_pages ORDER BY key')).rows); }
   catch (err) { sendError(res, 500, err); }
 });
-router.get('/cms/pages/:key', async (req, res) => {
-  try {
-    const { rows } = await query('SELECT * FROM site_pages WHERE key = $1', [req.params.key]);
-    if (!rows[0]) return res.status(404).json({ error: 'Page not found' });
-    res.json(rows[0]);
-  } catch (err) { sendError(res, 500, err); }
-});
 router.get('/cms/blog', async (_req, res) => {
   try {
     const { rows } = await query(
@@ -288,14 +281,6 @@ router.get('/cms/blog', async (_req, res) => {
     res.json(rows);
   } catch (err) { sendError(res, 500, err); }
 });
-router.get('/cms/blog/:id', async (req, res) => {
-  try {
-    const { rows } = await query('SELECT * FROM blog_posts WHERE published = true AND id = $1', [req.params.id]);
-    if (!rows[0]) return res.status(404).json({ error: 'Post not found' });
-    res.json(rows[0]);
-  } catch (err) { sendError(res, 500, err); }
-});
-
 /* ---------- Admin panel ----------
  * Every /admin/* route lives in ./admin.js (mounted below). The admin router
  * calls `router.use(requireAdmin)` internally, so each request is verified as

@@ -27,12 +27,6 @@ CREATE TABLE IF NOT EXISTS password_resets (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE TABLE IF NOT EXISTS items (
-  id         SERIAL PRIMARY KEY,
-  name       TEXT      NOT NULL,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
 -- Creative library: free text templates
 CREATE TABLE IF NOT EXISTS text_templates (
   id       SERIAL PRIMARY KEY,
@@ -112,3 +106,6 @@ CREATE TABLE IF NOT EXISTS contact_messages (
   message    TEXT          NOT NULL,
   created_at TIMESTAMPTZ   NOT NULL DEFAULT now()
 );
+
+-- Removed: the `items` table was demo scaffolding with no routes or UI.
+DROP TABLE IF EXISTS items;

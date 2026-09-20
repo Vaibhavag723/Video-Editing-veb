@@ -65,14 +65,6 @@ h1,h2,h3{color:#f5f5f7;letter-spacing:-.02em}
 .form-error{color:var(--c-bad);font-size:12px;margin:6px 0}
 /* === Marketing landing (Site.jsx) === */
 .site-top{position:sticky;top:0;z-index:30;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px;padding:16px 0;border-bottom:1px solid var(--c-border);background:rgba(10,10,10,.78);backdrop-filter:blur(8px)}
-.site-brand{display:inline-flex;align-items:center;gap:9px;font-size:21px;font-weight:800;color:#fff;text-decoration:none}
-.site-brand .cr-logo{display:block;flex:0 0 auto;width:30px;height:30px;border-radius:10px;filter:drop-shadow(0 4px 10px #00000055)}
-.site-brand:hover .cr-logo{transform:scale(1.06);filter:saturate(1.2) drop-shadow(0 4px 10px #00000055)}
-.site-nav{display:flex;gap:4px;flex-wrap:wrap}
-.site-nav button{background:none;border:0;color:var(--c-muted);font-weight:600;font-size:14px;padding:9px 14px;border-radius:var(--radius-sm);cursor:pointer}
-.site-nav button:hover{color:var(--c-text);background:var(--c-panel)}
-.site-nav button.active{color:#0f1721;background:var(--c-accent);font-weight:700}
-.site-account{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .site-user{font-weight:600;color:#cfe3ff}
 .site-btn{display:inline-flex;align-items:center;gap:7px;padding:11px 20px;border:1px solid var(--c-border);border-radius:var(--radius-sm);font-weight:700;font-size:14px;cursor:pointer;text-decoration:none;position:relative;overflow:hidden}
 .site-btn::after{content:'';position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(255,255,255,.08),transparent);transform:translateX(-110%);transition:transform .45s}
@@ -104,29 +96,8 @@ h1,h2,h3{color:#f5f5f7;letter-spacing:-.02em}
 .post-read h1{font-size:clamp(28px,3.2vw,40px);margin:12px 0;background:linear-gradient(90deg,var(--c-accent),#4c8dff);-webkit-background-clip:text;background-clip:text;color:transparent}
 .site-post-date{color:var(--c-muted);font-size:12px;margin:4px 0 18px}
 .site-page{padding:56px 0;animation:fade-up .45s ease both}
-.site-foot{border-top:1px solid var(--c-border);margin-top:40px;padding:0 8px 26px;color:var(--c-muted);font-size:13px}
-.footer-upper{display:grid;grid-template-columns:1.5fr 1fr 1fr 1.2fr;gap:30px;padding:38px 0 30px;border-bottom:1px solid var(--c-border)}
-.footer-brand .site-brand{font-size:22px}
-.footer-tagline{color:var(--c-muted);font-size:13px;line-height:1.7;max-width:280px;margin:14px 0 0}
-.footer-col h4{margin:0 0 14px;color:#fff;font-size:12px;font-weight:800;letter-spacing:.1em;text-transform:uppercase}
-.footer-link{display:block;background:none;border:0;padding:6px 0;color:#9a9aa6;font-weight:600;font-size:13.5px;text-align:left;cursor:pointer;transition:color .15s,transform .15s}
-.footer-link:hover{color:var(--c-accent);transform:translateX(2px)}
-.footer-note{color:var(--c-muted);font-size:12.5px;line-height:1.7;margin:0}
-.footer-bottom{display:flex;flex-wrap:wrap;gap:10px;justify-content:space-between;padding-top:20px;color:var(--c-muted);font-size:12px}
-@media(max-width:760px){.footer-upper{grid-template-columns:1fr 1fr;gap:24px}.footer-brand{grid-column:1/-1}}
 .site-muted{color:var(--c-muted)}
 /* === Admin-only inline page editing (live site) === */
-.site-edit-btn{position:absolute;top:16px;right:16px;width:34px;height:34px;border:0;border-radius:var(--radius-sm);background:var(--c-panel2);color:#9a9aa6;font-size:17px;line-height:1;box-shadow:var(--shadow);backdrop-filter:blur(2px)}
-.site-edit-btn:hover{color:#0f1721;background:var(--c-accent);color:#0f1721;transform:scale(1.1)}
-.site-page-editor{width:100%;max-width:760px;margin:28px auto;border:1px solid var(--c-border);border-radius:var(--radius);background:var(--c-panel);box-shadow:var(--shadow);padding:22px;animation:fade-up .35s ease both}
-.site-page-editor h2{margin:0 0 14px;color:#fff;font-size:16px;font-weight:700}
-.site-page-editor label{display:grid;gap:6px;margin:12px 0;color:#d6d6dd;font-size:12px;font-weight:700}
-.site-page-editor input,.site-page-editor textarea{width:100%;background:var(--c-bg2);border:1px solid var(--c-border);border-radius:var(--radius-sm);color:var(--c-text);padding:9px 11px;font-size:14px}
-.site-page-editor textarea{min-height:84px}
-.site-page-actions{display:flex;gap:10px;align-items:center;margin-top:16px}
-.site-page-actions .site-btn{min-width:110px;justify-content:center}
-.site-msg{color:var(--c-accent);font-size:12px;font-weight:700}
-.site-msg.bad{color:var(--c-bad)}
 .site-loading .spinner{width:40px;height:40px;border:4px solid var(--c-border);border-top-color:var(--c-accent);border-radius:50%;animation:spin .9s linear infinite;box-shadow:0 0 16px #00f0c833}
 .site-loading p{color:var(--c-muted);margin-top:16px;animation:blink-caret .9s step-end infinite}
 /* === Chat assistant === */
@@ -174,9 +145,6 @@ h1,h2,h3{color:#f5f5f7;letter-spacing:-.02em}
 /* Editor shell: everything else about the inner editor UI now lives in
    styles/editor.css (single source of truth, loaded after this file). */
 /* ============ Toast (transient status) ============ */
-.toast{position:fixed;left:50%;bottom:30px;transform:translate(-50%,20px);align-items:center;gap:8px;padding:12px 20px;border-radius:var(--radius-sm);background:var(--c-panel2);color:var(--c-text);box-shadow:var(--shadow);opacity:0;transition:opacity var(--t),transform var(--t);z-index:60;max-width:min(90vw,560px)}
-.toast.show{opacity:1;transform:translate(-50%,0)}
-.toast .toast-icon{font-size:16px}.toast .close-btn{border:0;background:transparent;color:#9a9aa6;font-size:14px;cursor:pointer}
 /* ============ Admin dashboard ============ */
 .admin-shell{min-height:100vh;background:radial-gradient(circle at 50% -20%,#14141d 0,#0a0a0e 45%,#050507 100%)}
 .admin-header{display:grid;grid-template-columns:auto 1fr auto;gap:18px;align-items:center;padding:16px 24px;border-bottom:1px solid var(--c-border);background:rgba(19,19,24,.72);backdrop-filter:blur(12px);position:sticky;top:0;z-index:20}
