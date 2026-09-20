@@ -26,6 +26,8 @@ project/
     ├── index.html
     ├── package.json
     ├── vite.config.js
+    ├── tailwind.config.js    # Tailwind token bridge + content globs
+    ├── postcss.config.mjs    # tailwindcss + autoprefixer (same shape as veltra/)
     ├── .env                 # VITE_API_URL (not committed)
     ├── .env.example
     └── src/
@@ -101,6 +103,55 @@ They cover password hashing, password-strength rules, JWT session tokens, the
 `requireAuth`/`requireAdmin` guards, account-level login lockout, and signup/login
 validation — including a regression test that a spoofed `X-User-Id` header alone
 can never grant access.
+
+## Styling — hand-written CSS + Tailwind
+
+The frontend keeps its hand-written design system (four stylesheets) *and* ships
+Tailwind, set up so the two never fight each other.
+
+| File | Purpose |
+| --- | --- |
+| `frontend/src/index.css` | Tailwind entry point (`@tailwind base/components/utilities`) plus the chat assistant and marketing-site basics |
+| `frontend/src/styles/pro.css` | Design tokens (`--c-*`), global motion, auth/admin/shared polish |
+| `frontend/src/styles/editor.css` | Everything inside the editor shell |
+| `frontend/src/styles/landing.css` | FlowStep marketing site, scoped under `.vcs` (generated head/tail — see `scripts/scope-landing.mjs`) |
+| `frontend/tailwind.config.js` | Token bridge + `content` globs (`./index.html`, `./src/**/*.{js,jsx}`) |
+| `frontend/postcss.config.mjs` | `tailwindcss` + `autoprefixer` |
+
+### How overrides work
+
+All four stylesheets are wrapped in `@layer legacy` — a plain native CSS cascade
+layer that Tailwind ignores. Tailwind emits its utilities **unlayered**, and
+unlayered CSS always beats layered CSS, so a utility written in the JSX overrides
+any existing class name without `!important` (and without touching the CSS):
+
+```jsx
+{/* existing class + Tailwind utilities side by side */}
+<em className="rounded-pill border border-solid border-accent/40 bg-accent/10 text-accent">
+```
+
+### Tokens are shared
+
+`bg-panel`, `bg-panel-2`, `text-muted`, `border-border`, `text-accent`, `bg-grape`,
+`text-mint`, `rounded-sm` / `rounded-pill`, `shadow-card`, `z-chat`, the `xs:` and
+`editor:` breakpoints and `animate-fade-up` / `animate-rise-in` / … all map onto the
+existing CSS variables, so utilities and the stylesheets speak one language.
+Animation delays use arbitrary values, e.g. `[animation-delay:120ms]`.
+
+### Notes / gotchas
+
+- **`preflight` is off** so the reset in `pro.css` keeps owning the document. That
+  means `border` utilities need an explicit style: write `border border-solid …`.
+  To hand base styles to Tailwind instead: set `preflight: true` in
+  `tailwind.config.js`, delete the duplicated resets at the top of `pro.css`, and add
+  `*, ::before, ::after { border-style: solid; border-width: 0 }`.
+- **Animations are declared once.** The `@keyframes` stay in the stylesheets; the
+  `animation` utilities in `tailwind.config.js` reference them by name.
+- **Do not** move the existing stylesheets into Tailwind's own
+  `@layer base/components/utilities`. Tailwind tree-shakes those blocks, so every rule
+  whose class is not found in the scanned files is silently dropped (`@layer legacy`
+  avoids that, and `@apply` still works inside it).
+- Native cascade layers need Chrome 99+ / Safari 15.4+ / Firefox 97+.
 
 ## Security
 See [SECURITY.md](./SECURITY.md) for the full rundown of what's protected

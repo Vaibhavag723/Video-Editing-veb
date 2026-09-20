@@ -4,6 +4,10 @@
    — landing, auth, editor shell, admin dashboard, chat, library — without
    touching the existing layout. Admin-only inline editing is styled here too.
    ========================================================================= */
+
+/* Part of the `@layer legacy` set: see src/index.css for the Tailwind entry
+   point and tailwind.config.js for the token bridge. */
+@layer legacy {
 :root{
   --c-bg:#0a0a0a;--c-bg2:#0e0e12;--c-panel:#131318;--c-panel2:#1a1a20;
   --c-border:#232329;--c-border2:#2c2c34;--c-text:#f5f5f7;--c-muted:#9a9aa6;
@@ -213,3 +217,5 @@ header{display:flex;align-items:center;justify-content:space-between;gap:12px;pa
 .question-head b{color:#fff;font-size:14px}
 .question-head .mono{font-size:11px}
 .question-body{margin:0;color:#c9c9d3;font-size:13px;line-height:1.6;white-space:pre-wrap}
+
+} /* end @layer components */

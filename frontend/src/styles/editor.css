@@ -7,6 +7,10 @@
    editor without needing duplicate copies elsewhere.
    ========================================================================= */
 
+/* Part of the `@layer legacy` set: see src/index.css for the Tailwind entry
+   point and tailwind.config.js for the token bridge. */
+@layer legacy {
+
 /* ---------- shell + header ---------- */
 .editor-shell{
   min-height:100vh;
@@ -431,11 +435,9 @@
 /* ---------- overlay animation picker (inspector) ---------- */
 .overlay-list .overlay{ display:flex; align-items:center; gap:6px; }
 .overlay-list .overlay .overlay-text{ min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.overlay-list .overlay .overlay-anim{
-  margin-left:auto; flex:0 0 auto; font-style:normal; font-size:9px; font-weight:800;
-  letter-spacing:.06em; text-transform:uppercase; color:var(--c-accent);
-  border:1px solid #00f0c855; border-radius:999px; padding:2px 6px; background:#00f0c812;
-}
+/* The animation badge next to each layer is written with Tailwind utilities in
+   App.jsx (rounded-pill / border-accent / bg-accent / text-accent) — it is the
+   reference example for mixing utilities with these stylesheets. */
 .anim-picker{ margin:12px 0 4px; display:flex; flex-direction:column; gap:9px; }
 .anim-picker .anim-row{ display:flex; align-items:center; justify-content:space-between; gap:10px; color:#9a9aa6; font-size:11px; font-weight:700; }
 .anim-picker .anim-row b{ color:var(--c-accent); font-family:"DM Mono",monospace; font-size:11px; }
@@ -451,3 +453,5 @@
   .lib-list > *,.audio-lib,.overlay-list .overlay,.cut-list span,.btn-spinner{ animation:none; }
   .header-actions .export-button.busy::after{ display:none; }
 }
+
+} /* end @layer components */

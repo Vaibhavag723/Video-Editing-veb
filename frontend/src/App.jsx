@@ -696,7 +696,7 @@ function App() {
         <button className="add-text" disabled={!enabled} onClick={addOverlay}>＋ Add text</button>
         <div className="overlay-list">{overlays.map((o) => {
           const label = o.kind === 'sticker' ? `${o.glyph} Sticker` : (o.text || 'Text');
-          return <div key={o.id} className={o.id === selectedOverlay ? 'overlay sel' : 'overlay'} onClick={() => setSelectedOverlay(o.id)}><span className="overlay-text">{label}</span>{isAnimated(o) && <em className="overlay-anim">{animationLabel(o.anim)}</em>}</div>;
+          return <div key={o.id} className={o.id === selectedOverlay ? 'overlay sel' : 'overlay'} onClick={() => setSelectedOverlay(o.id)}><span className="overlay-text">{label}</span>{isAnimated(o) && <em className="ml-auto shrink-0 rounded-pill border border-solid border-accent/40 bg-accent/10 px-1.5 py-0.5 text-[9px] font-extrabold uppercase not-italic tracking-[0.06em] text-accent">{animationLabel(o.anim)}</em>}</div>;
         })}</div>
       </aside>      <section className="workspace">
         <div className="preview" onPointerDown={onCanvasDown} onPointerMove={onCanvasMove} onPointerUp={onCanvasUp} onPointerLeave={onCanvasUp}>

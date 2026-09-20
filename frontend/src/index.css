@@ -1,4 +1,26 @@
 @import url('https://fonts.googleapis.com/css2?family=DM+Mono&family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap');
+
+/* ==========================================================================
+   Tailwind entry point — config: tailwind.config.js, pipeline: postcss.config.mjs
+
+   Everything below is wrapped in `@layer legacy`, a plain native CSS cascade
+   layer that Tailwind knows nothing about. That is deliberate:
+     - Tailwind emits its utilities *unlayered*, and unlayered CSS always beats
+       layered CSS, so any Tailwind utility written in the JSX overrides the
+       existing class names here without needing !important.
+     - Tailwind leaves the contents of the layer alone, so the hand-written CSS
+       in this file and in styles/ survives byte-for-byte. (Rules placed inside
+       Tailwind's own `@layer components` are tree-shaken whenever the class is
+       not found in the scanned files — verified against Tailwind 3.4.)
+   Keep the @import above the @tailwind directives: CSS requires @import first.
+   ========================================================================== */
+@layer legacy; /* declared first so the layer order is deterministic */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer legacy {
+
 /* =================== CutBot — floating assistant =================== */
 .chat-fab{position:fixed;right:22px;bottom:22px;z-index:1200;width:56px;height:56px;border:0;border-radius:18px;background:linear-gradient(135deg,#00f0c8,#4c8dff);color:#0f1721;font-size:24px;font-weight:800;box-shadow:0 12px 34px -8px #00f0c888;display:grid;place-items:center;cursor:pointer;transition:transform .18s,filter .2s}
 .chat-fab:hover{transform:translateY(-3px);filter:brightness(1.08)}
@@ -72,3 +94,5 @@
 
 /* ==== FlowStep chrome polish  display font for app chrome (editor + admin) ==== */
 .admin-shell h2{font-family:'Space Grotesk',Inter,Arial,sans-serif;letter-spacing:-.01em}
+
+} /* end @layer legacy */
