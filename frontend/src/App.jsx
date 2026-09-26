@@ -605,7 +605,8 @@ function App() {
     <header className="editor-header">
       <div className="editor-left">
         <button className="btn-back" onClick={back} aria-label="Back" title="Back">←</button>
-        <div className="brand"><Logo />VidioCut</div>
+        <span className="traffic-lights" aria-hidden="true"><span /><span /><span /></span>
+        <div className="brand"><Logo />VidioCut <span className="studio-tag">Studio</span></div>
       </div>
       <input className="project-name" value={name} onChange={(e) => setName(e.target.value)} aria-label="Project name" />
       <div className="header-actions">
@@ -620,7 +621,7 @@ function App() {
     </header>
     <main className="editor-main">
       <aside className="media-panel">
-        <h2>Media</h2>
+        <h2>Media Library</h2>
         <label className="import-button"><input ref={filesRef} type="file" accept="video/*" onChange={importVideo} />＋ Import video</label>
         <p>Your video stays on this device. Everything else is saved in the cloud.</p>
         {enabled && <div className="asset">▣ {name}</div>}

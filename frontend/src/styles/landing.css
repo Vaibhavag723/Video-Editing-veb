@@ -1166,6 +1166,133 @@ to {
   color: var(--muted);
 }
 
+/* ============ tools grid (VidioCut Studio reference: 5-category feature
+   section — Video Editing / Audio / Text / Visual Effects / AI Features) ============ */
+.vcs .tools-section {
+  max-width: 1152px;
+  margin: 0 auto;
+  padding: 104px 28px 96px;
+}
+.vcs .tools-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 16px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+.vcs .tools-eyebrow svg { width: 13px; height: 13px; }
+.vcs .tools-heading {
+  margin: 22px 0 0;
+  font-family: var(--font-display);
+  font-size: clamp(28px, 4vw, 40px);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: #f5f5f7;
+}
+.vcs .tools-heading .muted { color: var(--muted); }
+.vcs .tools-sub {
+  max-width: 640px;
+  margin: 14px 0 0;
+  color: var(--muted);
+  font-size: 15.5px;
+  line-height: 1.7;
+}
+.vcs .tools-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-top: 48px;
+}
+.vcs .tool-card {
+  border-radius: 18px;
+  padding: 26px;
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  transition: transform 0.3s var(--ease), border-color 0.3s var(--ease);
+}
+.vcs .tool-card:hover { transform: translateY(-3px); border-color: rgba(255, 255, 255, 0.16); }
+.vcs .tool-card:first-child { grid-column: span 2; }
+.vcs .tool-card.highlight {
+  background: linear-gradient(160deg, #baff3d, #8fe000);
+  border-color: transparent;
+}
+.vcs .tool-card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 22px; }
+.vcs .tool-icon {
+  width: 38px; height: 38px;
+  display: grid; place-items: center;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #e8e8ee;
+}
+.vcs .tool-card.highlight .tool-icon { background: rgba(10, 15, 5, 0.18); color: #0f1f04; }
+.vcs .tool-icon svg { width: 18px; height: 18px; }
+.vcs .tool-badge {
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(48, 224, 135, 0.35);
+  color: #4df5a4;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+}
+.vcs .tool-card h3 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: #f0f0f4;
+}
+.vcs .tool-card.highlight h3 { color: #0f1f04; }
+.vcs .tool-card p { margin: 6px 0 0; font-size: 13.5px; color: var(--muted); }
+.vcs .tool-card.highlight p { color: rgba(15, 31, 4, 0.75); }
+.vcs .tool-tags { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 18px; }
+.vcs .tool-tag {
+  padding: 6px 11px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  color: #d6d6dd;
+  font-size: 12px;
+  font-weight: 500;
+}
+.vcs .tool-card.highlight .tool-tag { background: rgba(10, 15, 5, 0.14); color: #16290a; }
+.vcs .tools-cta {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex-wrap: wrap;
+  margin-top: 20px;
+  padding: 22px 26px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+.vcs .tools-cta-icon {
+  width: 40px; height: 40px; flex: 0 0 auto;
+  display: grid; place-items: center;
+  border-radius: 10px;
+  background: #baff3d;
+  color: #0f1f04;
+}
+.vcs .tools-cta-icon svg { width: 18px; height: 18px; }
+.vcs .tools-cta-text { flex: 1; min-width: 200px; display: flex; flex-direction: column; gap: 2px; }
+.vcs .tools-cta-text b { color: #f5f5f7; font-size: 15px; }
+.vcs .tools-cta-text span { color: var(--muted); font-size: 13px; }
+@media (max-width: 920px) {
+  .vcs .tools-grid { grid-template-columns: repeat(2, 1fr); }
+  .vcs .tool-card:first-child { grid-column: span 2; }
+}
+@media (max-width: 720px) {
+  .vcs .tools-grid { grid-template-columns: 1fr; }
+  .vcs .tool-card:first-child { grid-column: span 1; }
+}
+
 /* ============ footer ============ */
 .vcs .foot {
   max-width: 1152px;
@@ -2105,3 +2232,95 @@ to {
   }
 }
 
+/* ============ pricing page (VidioCut Studio reference design) ============ */
+.vcs .pricing-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  margin: 36px auto 0;
+  color: var(--muted);
+  font-size: 13.5px;
+  font-weight: 600;
+}
+.vcs .pricing-toggle .active { color: #f5f5f7; }
+.vcs .toggle-switch {
+  width: 42px; height: 24px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.06);
+  position: relative;
+  cursor: pointer;
+  padding: 0;
+}
+.vcs .toggle-knob {
+  position: absolute;
+  top: 2px; left: 2px;
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  background: #f5f5f7;
+  transition: transform 0.2s var(--ease);
+}
+.vcs .toggle-switch.on .toggle-knob { transform: translateX(18px); }
+.vcs .pricing-save {
+  padding: 5px 11px;
+  border-radius: 999px;
+  background: rgba(48, 224, 135, 0.12);
+  border: 1px solid rgba(48, 224, 135, 0.3);
+  color: #4df5a4;
+  font-size: 11.5px;
+}
+.vcs .pricing-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px;
+  max-width: 1080px;
+  margin: 44px auto 0;
+  padding: 0 28px;
+}
+.vcs .pricing-card {
+  position: relative;
+  border-radius: 18px;
+  padding: 30px 26px;
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+.vcs .pricing-card.popular {
+  border-color: rgba(76, 141, 255, 0.4);
+  background: rgba(76, 141, 255, 0.05);
+  transform: translateY(-6px);
+}
+.vcs .pricing-badge {
+  position: absolute;
+  top: -13px; left: 50%;
+  transform: translateX(-50%);
+  padding: 5px 14px;
+  border-radius: 999px;
+  background: #4c8dff;
+  color: #fff;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+.vcs .pricing-tier-label { margin: 0; color: var(--muted); font-size: 11.5px; font-weight: 800; letter-spacing: 0.08em; }
+.vcs .pricing-amount { margin: 10px 0 0; display: flex; align-items: baseline; gap: 6px; }
+.vcs .pricing-amount b { font-family: var(--font-display); font-size: 40px; font-weight: 700; color: #f5f5f7; }
+.vcs .pricing-amount span { color: var(--muted); font-size: 13px; }
+.vcs .pricing-blurb { margin: 10px 0 22px; color: var(--muted); font-size: 13.5px; }
+.vcs .pricing-features { list-style: none; margin: 0 0 26px; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.vcs .pricing-features li { display: flex; align-items: center; gap: 9px; color: #d6d6dd; font-size: 13.5px; }
+.vcs .pricing-check { color: #4df5a4; font-weight: 700; }
+.vcs .pricing-card .site-btn { width: 100%; justify-content: center; }
+.vcs .pricing-footnote {
+  max-width: 700px;
+  margin: 40px auto 0;
+  padding: 0 28px;
+  text-align: center;
+  color: var(--muted-2);
+  font-size: 13px;
+}
+@media (max-width: 860px) {
+  .vcs .pricing-grid { grid-template-columns: 1fr; max-width: 420px; }
+  .vcs .pricing-card.popular { transform: none; }
+}

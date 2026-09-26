@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
 import { getSitePages, getSitePosts } from '../api';
 import FaqPage from './site/FaqPage';
+import PricingPage from './site/PricingPage';
 import AskPage from './site/AskPage';
 import Footer from './Footer';
 import Reveal from './site/landing/Reveal.jsx';
 import EditorMock from './site/landing/EditorMock.jsx';
-import { PlayRoundedIcon, ArrowRightIcon, ZapIcon, LinkIcon, CloudIcon } from './site/landing/icons.jsx';
+import { PlayRoundedIcon, ArrowRightIcon, ScissorsIcon, MusicIcon, TypeIcon, SparklesIcon, ZapIcon } from './site/landing/icons.jsx';
 
 const NAV = [
   ['home', 'Home'],
@@ -26,11 +27,79 @@ const PILLS = [
   'Instant export',
 ];
 
-const FEATURES = [
-  { tone: 'green', icon: <ZapIcon />, title: 'Built for momentum', text: 'Every tool feels instant.' },
-  { tone: 'blue', icon: <LinkIcon />, title: 'Power without clutter', text: 'Pro-grade controls, simplified.' },
-  { tone: 'purple', icon: <CloudIcon />, title: 'Your studio, anywhere', text: 'Projects sync in the cloud.' },
+const TOOL_CATEGORIES = [
+  {
+    tone: 'default', icon: <ScissorsIcon />, badge: 'CORE TOOLS',
+    title: 'Video Editing', text: 'Make every frame feel intentional.',
+    tags: ['Trim', 'Cut', 'Split', 'Merge', 'Crop', 'Resize', 'Rotate', 'Speed control', 'Reverse', 'Freeze frame'],
+  },
+  {
+    tone: 'default', icon: <MusicIcon />,
+    title: 'Audio', text: 'Give your story a voice.',
+    tags: ['Upload music', 'Trim', 'Volume', 'Fade in/out', 'Voiceover', 'Noise reduction', 'Waveform'],
+  },
+  {
+    tone: 'default', icon: <TypeIcon />,
+    title: 'Text', text: 'Make your message impossible to miss.',
+    tags: ['Text overlays', 'Animated text', 'Fonts', 'Colors', 'Shadows', 'Captions', 'Subtitles', 'Auto captions'],
+  },
+  {
+    tone: 'default', icon: <SparklesIcon />,
+    title: 'Visual Effects', text: 'Shape the mood of every scene.',
+    tags: ['Filters', 'Color grading', 'Blur', 'Transitions', 'Stickers', 'Shapes', 'Animations'],
+  },
+  {
+    tone: 'highlight', icon: <ZapIcon />,
+    title: 'AI Features', text: 'Skip the busywork. Keep the creativity.',
+    tags: ['AI auto captions', 'Background removal', 'Silence removal', 'Highlight detection', 'AI resize', 'Scene detection', 'Video enhancement'],
+  },
 ];
+
+/* FlowStep "everything you need to create" tools grid, matching the
+   VidioCut Studio reference design's 5-category feature section. */
+function FeatureCards({ onStart }) {
+  return (
+    <section className="tools-section">
+      <Reveal className="tools-eyebrow" delay={0.05}>
+        <SparklesIcon /> EVERYTHING YOU NEED TO CREATE
+      </Reveal>
+      <Reveal as="h2" className="tools-heading" delay={0.1}>
+        Powerful tools for videos <span className="muted">that keep moving.</span>
+      </Reveal>
+      <Reveal as="p" className="tools-sub" delay={0.15}>
+        From quick cuts to polished campaigns, VidioCut gives you a fast, focused workspace
+        for every part of your creative process.
+      </Reveal>
+
+      <div className="tools-grid">
+        {TOOL_CATEGORIES.map((cat, i) => (
+          <Reveal as="article" key={cat.title} className={`tool-card ${cat.tone}`} delay={0.05 + i * 0.08}>
+            <div className="tool-card-head">
+              <span className="tool-icon">{cat.icon}</span>
+              {cat.badge && <span className="tool-badge">{cat.badge}</span>}
+            </div>
+            <h3>{cat.title}</h3>
+            <p>{cat.text}</p>
+            <div className="tool-tags">
+              {cat.tags.map((tag) => <span key={tag} className="tool-tag">{tag}</span>)}
+            </div>
+          </Reveal>
+        ))}
+      </div>
+
+      <Reveal className="tools-cta" delay={0.1}>
+        <span className="tools-cta-icon"><ZapIcon /></span>
+        <div className="tools-cta-text">
+          <b>Ready to make something move?</b>
+          <span>Start creating for free. No credit card required.</span>
+        </div>
+        <button type="button" className="btn-primary" onClick={onStart}>
+          Start Editing <ArrowRightIcon />
+        </button>
+      </Reveal>
+    </section>
+  );
+}
 
 /* FlowStep hero — badge, gradient headline, CTAs, feature pills */
 function Hero({ onStart, onExplore }) {
@@ -173,7 +242,7 @@ export default function Site({ user, onLogin, onSignUp, onOpenEditor, onOpenAdmi
           <>
             <Hero onStart={startCta} onExplore={() => setPage('features')} />
             <EditorMock />
-            <FeatureCards />
+            <FeatureCards onStart={startCta} />
           </>
         ) : page === 'blog' ? (
           <section className="site-page">
@@ -204,6 +273,8 @@ export default function Site({ user, onLogin, onSignUp, onOpenEditor, onOpenAdmi
           </section>
         ) : page === 'faq' ? (
           <FaqPage />
+        ) : page === 'pricing' ? (
+          <PricingPage onSelectPlan={() => startCta()} />
         ) : page === 'ask' ? (
           <AskPage user={user} />
         ) : (
@@ -222,7 +293,7 @@ export default function Site({ user, onLogin, onSignUp, onOpenEditor, onOpenAdmi
                 {renderBullets(getPage(page).body).map((b, i) => <span key={i} className="site-bullet">{b}</span>)}
               </div>
             )}
-            {page === 'features' && <FeatureCards />}
+            {page === 'features' && <FeatureCards onStart={startCta} />}
           </section>
         )}
       </main>
