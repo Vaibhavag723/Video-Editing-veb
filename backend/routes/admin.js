@@ -3,6 +3,7 @@ const router = express.Router();
 const { query } = require('../config/db');
 const { hashPassword, isStrongPassword, WEAK_PASSWORD_MSG } = require('../util/hash');
 const User = require('../models/User');
+const RefreshToken = require('../models/RefreshToken');
 const ContactMessage = require('../models/ContactMessage');
 const { sendError } = require('../util/errors');
 const requireAdmin = require('../middleware/requireAdmin');
@@ -62,6 +63,9 @@ router.put('/users/:id', async (req, res) => {
 
     const updated = await User.updateUser(targetId, { name, email, passwordHash });
     if (!updated) return res.status(404).json({ error: 'User not found' });
+    // A new password should also end any session that was opened with the
+    // old one, the same way a self-service reset does.
+    if (passwordHash) await RefreshToken.revokeAllForUser(targetId);
     res.json(updated);
   } catch (err) { sendError(res, 500, err); }
 });

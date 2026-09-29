@@ -4,20 +4,67 @@ const crypto = require('crypto');
 const { query } = require('../config/db');
 const { hashPassword, verifyPassword, isStrongPassword, WEAK_PASSWORD_MSG } = require('../util/hash');
 const User = require('../models/User');
+const RefreshToken = require('../models/RefreshToken');
 const PasswordReset = require('../models/PasswordReset');
 const ContactMessage = require('../models/ContactMessage');
 const { sendPasswordResetEmail, sendAdminMessageNotification } = require('../util/email');
 const { signToken } = require('../util/jwt');
 const { sendError } = require('../util/errors');
 const requireAuth = require('../middleware/requireAuth');
+const requireTrustedOrigin = require('../middleware/requireTrustedOrigin');
 
-// Shared shape for every auth response: never send password data back, and
-// always include a signed session token the frontend attaches as
-// `Authorization: Bearer <token>` on subsequent requests.
-const authPayload = (user) => ({
-  id: user.id, name: user.name, email: user.email, isAdmin: user.is_admin,
-  token: signToken(user),
-});
+// Cookie carrying the long-lived refresh token. httpOnly so client-side JS
+// (and therefore an XSS bug) can never read it; scoped to /api/auth so it is
+// never even sent on other API calls, shrinking the blast radius further;
+// `secure` in production so it's only ever transmitted over HTTPS; `lax`
+// rather than `strict` so a user following a link from email/elsewhere into
+// the app doesn't get logged out, while still blocking the classic
+// cross-site POST CSRF pattern.
+const REFRESH_COOKIE = 'refresh_token';
+
+// SameSite policy. 'lax' (default) is right when the frontend and API share a
+// registrable domain (app.example.com + api.example.com) or run on localhost.
+// If they live on completely different domains, the browser will not send a
+// lax cookie on the frontend's fetch() calls — set COOKIE_SAMESITE=none, which
+// browsers only accept together with `secure`, so it is forced on here.
+// 'strict' is also accepted for same-site-only deployments.
+function cookieSameSite() {
+  const v = String(process.env.COOKIE_SAMESITE || 'lax').toLowerCase();
+  return ['lax', 'strict', 'none'].includes(v) ? v : 'lax';
+}
+const refreshCookieOpts = () => {
+  const sameSite = cookieSameSite();
+  return {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production' || sameSite === 'none',
+    sameSite,
+    path: '/api/auth',
+    maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days — must match RefreshToken's TTL
+  };
+};
+// Clearing a cookie only works if the attributes match the ones it was set with.
+const clearRefreshCookie = (res) => {
+  const { maxAge, ...attrs } = refreshCookieOpts();
+  res.clearCookie(REFRESH_COOKIE, attrs);
+};
+
+// Two tabs (or two parallel requests) can present the same refresh token in the
+// same instant. The loser finds it already rotated — indistinguishable from a
+// replayed stolen token unless we allow a short grace window. Inside it we
+// hand out a fresh access token but do NOT alarm; outside it, reuse of a
+// rotated token means possible theft and the whole session family is revoked.
+const ROTATION_GRACE_MS = 10 * 1000;
+
+// Shared shape for every auth response: never send password data back,
+// always include a short-lived (15m) signed access token the frontend
+// attaches as `Authorization: Bearer <token>` on subsequent requests, and set
+// an httpOnly refresh-token cookie the frontend can silently exchange for a
+// new access token via /auth/refresh once the access token expires.
+async function issueSession(res, user) {
+  const refreshToken = await RefreshToken.issue(user.id);
+  res.cookie(REFRESH_COOKIE, refreshToken, refreshCookieOpts());
+  return { id: user.id, name: user.name, email: user.email, isAdmin: user.is_admin, token: signToken(user) };
+}
 
 /* ---------- Auth (PostgreSQL) ---------- */
 
@@ -56,7 +103,7 @@ router.post('/auth/signup', async (req, res) => {
     if (!isStrongPassword(password)) return res.status(400).json({ error: WEAK_PASSWORD_MSG });
     if (await User.findByEmail(email)) return res.status(409).json({ error: 'An account already exists for that email.' });
     const user = await User.create(name, email, await hashPassword(password));
-    res.status(201).json(authPayload(user));
+    res.status(201).json(await issueSession(res, user));
   } catch (err) {
     res.status(500).json({ error: 'Unable to create account.' });
   }
@@ -74,8 +121,79 @@ router.post('/auth/login', async (req, res) => {
       return res.status(401).json({ error: 'Incorrect email or password.' });
     }
     await logLogin(user.id, email, true);
-    res.json(authPayload(user));
+    res.json(await issueSession(res, user));
   } catch { res.status(500).json({ error: 'Unable to log in.' }); }
+});
+
+// Silently exchange a still-valid refresh-token cookie for a new 15-minute
+// access token, so the user doesn't have to log in again every 15 minutes.
+// The refresh token itself is rotated on every use (old one revoked, new one
+// issued) — if a stolen refresh token is ever replayed after the real owner
+// has already rotated past it, the old hash is found already revoked, which
+// is treated as a compromise signal and the entire session is killed rather
+// than just failing this one request.
+router.post('/auth/refresh', requireTrustedOrigin, async (req, res) => {
+  try {
+    const presented = req.cookies?.[REFRESH_COOKIE];
+    if (!presented) return res.status(401).json({ error: 'No refresh session found. Please sign in again.' });
+
+    const row = await RefreshToken.find(presented);
+    if (!row || row.expires_at < new Date()) {
+      clearRefreshCookie(res);
+      return res.status(401).json({ error: 'Your session has expired. Please sign in again.' });
+    }
+    if (row.revoked_at) {
+      const rotatedRecently = row.rotated_at && Date.now() - new Date(row.rotated_at).getTime() < ROTATION_GRACE_MS;
+      if (!rotatedRecently) {
+        // Reuse of a rotated-out (or logged-out) token: possible theft. Kill
+        // every outstanding refresh token for this user as a precaution.
+        await RefreshToken.revokeAllForUser(row.user_id);
+        clearRefreshCookie(res);
+        return res.status(401).json({ error: 'This session was revoked. Please sign in again.' });
+      }
+      // Benign race (see ROTATION_GRACE_MS): the other request already issued
+      // the new refresh cookie, so only an access token is returned here.
+      const raceUser = await User.findById(row.user_id);
+      if (!raceUser) { clearRefreshCookie(res); return res.status(401).json({ error: 'Account no longer exists.' }); }
+      return res.json({ id: raceUser.id, name: raceUser.name, email: raceUser.email, isAdmin: raceUser.is_admin, token: signToken(raceUser) });
+    }
+
+    const user = await User.findById(row.user_id);
+    if (!user) {
+      clearRefreshCookie(res);
+      return res.status(401).json({ error: 'Account no longer exists.' });
+    }
+
+    const newRefreshToken = await RefreshToken.rotate(row.id, user.id);
+    res.cookie(REFRESH_COOKIE, newRefreshToken, refreshCookieOpts());
+    res.json({ id: user.id, name: user.name, email: user.email, isAdmin: user.is_admin, token: signToken(user) });
+  } catch { res.status(500).json({ error: 'Unable to refresh session.' }); }
+});
+
+// Revoke the current refresh token and clear its cookie. The short-lived
+// access token the client is still holding keeps working until it naturally
+// expires (at most 15 minutes) — this only prevents the session from being
+// silently renewed past that point.
+router.post('/auth/logout', requireTrustedOrigin, async (req, res) => {
+  try {
+    const presented = req.cookies?.[REFRESH_COOKIE];
+    if (presented) {
+      const row = await RefreshToken.find(presented);
+      if (row) await RefreshToken.revoke(row.id);
+    }
+  } catch { /* best-effort — clearing the cookie below is what actually matters client-side */ }
+  clearRefreshCookie(res);
+  res.json({ success: true });
+});
+
+// "Sign out everywhere": revokes every refresh token this account holds (every
+// browser/device). Needs a valid access token — a stolen cookie alone can't
+// trigger it — and clears this browser's cookie too.
+router.post('/auth/logout-all', requireTrustedOrigin, requireAuth, async (req, res) => {
+  try { await RefreshToken.revokeAllForUser(req.user.id); }
+  catch (err) { return sendError(res, 500, err, 'Unable to sign out everywhere.'); }
+  clearRefreshCookie(res);
+  res.json({ success: true });
 });
 
 /* ---------- Password reset via email ----------
@@ -119,10 +237,14 @@ router.post('/auth/reset-password', async (req, res) => {
     if (!reset) return res.status(400).json({ error: 'This reset link is invalid or has expired. Request a new one.' });
 
     // Consume the token, invalidate any other outstanding links, then set the
-    // new password so the old one stops working immediately.
+    // new password so the old one stops working immediately. Also revoke
+    // every refresh token for this account — if the reset was needed because
+    // a password leaked, an attacker's still-open session should not be able
+    // to silently renew itself past this point.
     await PasswordReset.markUsed(reset.id);
     await PasswordReset.invalidateForUser(reset.user_id);
     await User.updatePassword(reset.user_id, await hashPassword(password));
+    await RefreshToken.revokeAllForUser(reset.user_id);
     res.json({ message: 'Password updated. You can now sign in with your new password.' });
   } catch { res.status(500).json({ error: 'Unable to reset the password.' }); }
 });
@@ -154,7 +276,7 @@ router.post('/auth/google', async (req, res) => {
       user = await User.create(String(google.name || 'Google user').slice(0, 120), email, randomHash);
     }
     await logLogin(user.id, email, true);
-    res.json(authPayload(user));
+    res.json(await issueSession(res, user));
   } catch { res.status(500).json({ error: 'Unable to sign in with Google.' }); }
 });
 
@@ -192,7 +314,7 @@ router.post('/auth/google/dev', async (req, res) => {
     const randomHash = await hashPassword(crypto.randomBytes(24).toString('hex'));
     const user = await User.create(name, email, randomHash);
     await logLogin(user.id, email, true);
-    res.json(authPayload(user));
+    res.json(await issueSession(res, user));
   } catch { res.status(500).json({ error: 'Unable to sign in with the demo Google account.' }); }
 });
 

@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import Library from './components/Library';
+import IdleWarning from './components/IdleWarning';
+import useIdleTimeout from './hooks/useIdleTimeout';
 import {
   getCloudProjects, saveCloudProject, getCloudProject, deleteCloudProject, getMusicList,
-  setSessionToken, clearSessionToken, setOnSessionExpired,
+  setSessionToken, clearSessionToken, setOnSessionExpired, logOut, logOutEverywhere, restoreSession,
 } from './api';
 import SignIn from './components/auth/SignIn';
 import SignUp from './components/auth/SignUp';
@@ -82,11 +84,26 @@ function App() {
   const [previewId, setPreviewId] = useState(null);
 
   const [user, setUser] = useState(null);
+  const [sessionChecked, setSessionChecked] = useState(false);
   const [route, setRoute] = useState('home'); // start visitors on the marketing landing (subbly-style) with Sign In / Open editor
   const [history, setHistory] = useState([]); // navigation history for the Back button
   // When the app is opened from the emailed "forgot password" link (/?reset=TOKEN)
   // the token is captured here and the reset screen is shown instead of the site.
   const [resetToken, setResetToken] = useState(() => new URLSearchParams(window.location.search).get('reset'));
+
+  // On first load, silently try to resume a session from the refresh-token
+  // cookie (if the browser still has a valid one from an earlier visit)
+  // before deciding whether to show the signed-out or signed-in experience.
+  // Skipped entirely on the password-reset deep link, which has its own flow.
+  useEffect(() => {
+    if (resetToken) { setSessionChecked(true); return; }
+    let alive = true;
+    restoreSession().then((body) => {
+      if (alive && body) setUser({ id: body.id, name: body.name, email: body.email, isAdmin: body.isAdmin });
+    }).finally(() => { if (alive) setSessionChecked(true); });
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // If any request comes back 401 (expired token, deleted account, server
   // restart), drop the stale session and send the user to sign in rather than
@@ -567,11 +584,41 @@ function App() {
     setRoute('home');
   };
   const logout = () => {
+    logOut(); // best-effort: revoke the refresh-token cookie server-side
     clearSessionToken();
     setUser(null);
     setHistory([]);
     setRoute('signin');
   };
+  // Revokes every browser/device's refresh token for this account, then signs
+  // this browser out too — even if the request fails, the local session ends.
+  const logoutEverywhere = async () => {
+    try { await logOutEverywhere(); } catch { /* still sign out locally */ }
+    clearSessionToken();
+    setUser(null);
+    setHistory([]);
+    setRoute('signin');
+  };
+
+  // Inactivity window: warn, then sign out. Held off while a video plays or an
+  // export runs. VITE_IDLE_TIMEOUT_MINUTES=0 turns it off; default 30 minutes.
+  const idleMinutes = Number(import.meta.env.VITE_IDLE_TIMEOUT_MINUTES ?? 30);
+  const idleMs = Number.isFinite(idleMinutes) ? idleMinutes * 60 * 1000 : 30 * 60 * 1000;
+  const idle = useIdleTimeout({
+    enabled: !!user && idleMs > 0,
+    paused: playing || exporting,
+    idleMs,
+    onTimeout: logout,
+  });
+  const idleDialog = idle.warning
+    ? <IdleWarning secondsLeft={idle.secondsLeft} onStay={idle.stay} onSignOut={logout} />
+    : null;
+  // Brief silent check for an existing session (see the restoreSession
+  // effect above) — avoids flashing the signed-out landing page for a
+  // returning user who's actually still logged in via the refresh cookie.
+  if (!sessionChecked) {
+    return <div className="site-loading"><span className="spinner">&nbsp;</span><p>Loading VidioCut…</p></div>;
+  }
   // Password-reset screen (deep-linked from the email). Runs before the auth
   // checks so it works for signed-out visitors; on completion the query string
   // token is removed and the user is taken to the sign-in screen.
@@ -593,10 +640,10 @@ function App() {
   }
   // Logged-in users land on the website; admin/editor are one click away.
   if (route === 'home') {
-    return <Site user={user} onOpenEditor={() => go('editor')} onOpenAdmin={() => go('admin')} onLogout={logout} onBack={back} canGoBack={canGoBack} />;
+    return <><Site user={user} onOpenEditor={() => go('editor')} onOpenAdmin={() => go('admin')} onLogout={logout} onLogoutEverywhere={logoutEverywhere} onBack={back} canGoBack={canGoBack} />{idleDialog}</>;
   }
   if (route === 'admin') {
-    return <AdminPanel user={user} onViewSite={() => setRoute('home')} onOpenEditor={() => go('editor')} onBack={back} canGoBack={canGoBack} />;
+    return <><AdminPanel user={user} onViewSite={() => setRoute('home')} onOpenEditor={() => go('editor')} onBack={back} canGoBack={canGoBack} />{idleDialog}</>;
   }
 
   const selected = overlays.find((o) => o.id === selectedOverlay) || null;
@@ -738,6 +785,7 @@ function App() {
       </aside>
     </main>
     <ChatBot />
+    {idleDialog}
   </div>;
 }
 

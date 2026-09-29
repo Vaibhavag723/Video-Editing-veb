@@ -1,0 +1,103 @@
+# Example production Nginx config for VidioCut: TLS termination for both the
+# API and the built frontend. Copy to /etc/nginx/sites-available/vidiocut,
+# replace every "vidiocut.example" with your domain, then:
+#
+#   sudo certbot --nginx -d vidiocut.example -d api.vidiocut.example
+#
+# certbot obtains free Let's Encrypt certificates, fills in the ssl_certificate
+# lines below and installs a timer that renews them before they expire (90 days).
+#
+# Backend .env for this setup:
+#   NODE_ENV=production
+#   TRUST_PROXY=1                       # so Express trusts X-Forwarded-Proto/For
+#   ALLOWED_ORIGINS=https://vidiocut.example
+#   # frontend and API share a registrable domain (vidiocut.example /
+#   # api.vidiocut.example), so the default COOKIE_SAMESITE=lax works.
+# Frontend build: VITE_API_URL=https://api.vidiocut.example/api npm run build
+
+# --- Plain HTTP: do nothing except send everyone to HTTPS ---------------------
+server {
+    listen 80;
+    listen [::]:80;
+    server_name vidiocut.example api.vidiocut.example;
+    return 301 https://$host$request_uri;
+}
+
+# --- Shared TLS settings (include in both HTTPS server blocks) ----------------
+# Only TLS 1.2/1.3; modern ciphers; session resumption without tickets.
+#   ssl_protocols TLSv1.2 TLSv1.3;
+#   ssl_prefer_server_ciphers off;
+#   ssl_session_cache shared:SSL:10m;
+#   ssl_session_timeout 1d;
+#   ssl_session_tickets off;
+#   ssl_stapling on;
+#   ssl_stapling_verify on;
+
+# --- Frontend (static files from `npm run build`) -----------------------------
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name vidiocut.example;
+
+    ssl_certificate     /etc/letsencrypt/live/vidiocut.example/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/vidiocut.example/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers off;
+    ssl_session_cache shared:SSL:10m;
+    ssl_session_timeout 1d;
+    ssl_session_tickets off;
+    ssl_stapling on;
+    ssl_stapling_verify on;
+
+    root /var/www/vidiocut/dist;
+    index index.html;
+
+    # HSTS: browsers refuse plain HTTP to this host for a year.
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;
+
+    # The frontend build already embeds a CSP <meta> tag, but meta CSPs cannot
+    # express `frame-ancestors` (anti-clickjacking). Sending the policy as a
+    # real header adds that, and is enforced before any HTML is parsed.
+    # Keep connect-src in sync with VITE_API_URL.
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self' https://accounts.google.com/gsi/client; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://accounts.google.com/gsi/style; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; media-src 'self' blob:; connect-src 'self' https://api.vidiocut.example https://accounts.google.com/gsi/; frame-src https://accounts.google.com/gsi/; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests" always;
+
+    location / {
+        try_files $uri /index.html;          # single-page-app fallback
+    }
+    location /assets/ {
+        add_header Cache-Control "public, max-age=31536000, immutable";
+        # add_header in a location drops the server-level ones — repeat what you need
+        add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+        add_header X-Content-Type-Options "nosniff" always;
+    }
+}
+
+# --- API (reverse proxy to the Node backend on 127.0.0.1:5000) ----------------
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name api.vidiocut.example;
+
+    ssl_certificate     /etc/letsencrypt/live/vidiocut.example/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/vidiocut.example/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers off;
+    ssl_session_cache shared:SSL:10m;
+    ssl_session_timeout 1d;
+    ssl_session_tickets off;
+
+    location / {
+        proxy_pass http://127.0.0.1:5000;
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        # Express reads this (TRUST_PROXY=1) to know the client used HTTPS,
+        # which is what makes req.secure, the Secure cookie flag and the
+        # enforceHttps middleware behave correctly behind the proxy.
+        proxy_set_header X-Forwarded-Proto $scheme;
+        client_max_body_size 2m;             # matches express.json({ limit: '2mb' })
+    }
+}

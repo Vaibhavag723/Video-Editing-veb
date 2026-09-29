@@ -1,91 +1,59 @@
-require('dotenv').config();
-
-const express = require('express');
-const cors = require('cors');
-const helmet = require('helmet');
-const hpp = require('hpp');
-const rateLimit = require('express-rate-limit');
+const app = require('./app');
 const { initDb } = require('./config/db');
-const api = require('./routes/api');
-
-// Fail fast on missing/weak security config instead of booting with a
-// silently insecure default. util/jwt.js already throws if JWT_SECRET is
-// completely unset; this catches the "set but trivially guessable" case
-// specifically for production deploys.
-if (process.env.NODE_ENV === 'production') {
-  const weakSecrets = ['change-me-to-a-long-random-string', 'secret', ''];
-  if (!process.env.JWT_SECRET || weakSecrets.includes(process.env.JWT_SECRET) || process.env.JWT_SECRET.length < 32) {
-    throw new Error('JWT_SECRET must be set to a long, random value in production. Generate one with: node -e "console.log(require(\'crypto\').randomBytes(48).toString(\'hex\'))"');
-  }
-  if (!process.env.ALLOWED_ORIGINS) {
-    console.warn('WARNING: ALLOWED_ORIGINS is not set in production — CORS defaults to allowing every origin.');
-  }
-}
-
-const app = express();
-
-// Trust the first proxy hop (needed behind Nginx/Heroku/Render/etc. so
-// req.ip and the rate limiter see the real client IP instead of the proxy's).
-if (process.env.TRUST_PROXY) app.set('trust proxy', 1);
-
-// Security headers: CSP, HSTS, X-Content-Type-Options, X-Frame-Options, etc.
-// This is a pure JSON API (no HTML/inline scripts served here), so a strict
-// default-src 'none' CSP is safe and does not need per-route tuning.
-app.use(helmet({
-  contentSecurityPolicy: {
-    directives: { defaultSrc: ["'none'"], frameAncestors: ["'none'"] },
-  },
-  crossOriginResourcePolicy: { policy: 'same-site' },
-}));
-
-// In dev (no ALLOWED_ORIGINS set) allow any origin so `npm run dev` just
-// works; in production set ALLOWED_ORIGINS to a comma-separated list of your
-// real frontend domain(s) so the API only accepts requests from your app.
-const allowedOrigins = (process.env.ALLOWED_ORIGINS || '').split(',').map((s) => s.trim()).filter(Boolean);
-app.use(cors(allowedOrigins.length ? { origin: allowedOrigins } : {}));
-
-// Cap request body size — this API only ever receives small JSON payloads
-// (auth forms, project metadata, CMS text), never raw video, so 2mb is
-// generous headroom while still blocking oversized-payload abuse.
-app.use(express.json({ limit: '2mb' }));
-
-// HTTP Parameter Pollution guard: if a client sends the same query-string key
-// twice (?email=a&email=b), Express normally hands you an array, which can
-// bypass code written assuming a string (e.g. regex/length checks silently
-// passing on an array). hpp collapses duplicates to the last value instead.
-app.use(hpp());
-
-// General API rate limit: generous enough for normal editor use, but caps
-// scripted abuse / scraping.
-app.use('/api', rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 300,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: 'Too many requests. Please try again in a few minutes.' },
-}));
-
-// Stricter limit on auth endpoints specifically — these are the routes worth
-// protecting against credential stuffing / brute-force / signup spam. Keyed
-// by IP; a real deployment behind a shared NAT may want to also key by email.
-const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 20,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: 'Too many attempts. Please wait a few minutes and try again.' },
-});
-app.use('/api/auth', authLimiter);
-
-app.use('/api', api);
 
 const PORT = process.env.PORT || 5000;
+const usingTls = !!(process.env.SSL_KEY_PATH && process.env.SSL_CERT_PATH);
+
+// HTTPS/TLS. In most deployments TLS ends at a reverse proxy (Nginx, Render,
+// Cloudflare...) in front of this plain-HTTP server — leave SSL_* empty and set
+// TRUST_PROXY=1. When Node itself must terminate TLS (a standalone VM with its
+// own certificate), set SSL_KEY_PATH and SSL_CERT_PATH and the server switches
+// to https.createServer. Generate a local test pair with `npm run cert:dev`.
+function createHttpServer() {
+  if (usingTls) {
+    const https = require('https');
+    const fs = require('fs');
+    return https.createServer({
+      key: fs.readFileSync(process.env.SSL_KEY_PATH),
+      cert: fs.readFileSync(process.env.SSL_CERT_PATH),
+      minVersion: 'TLSv1.2', // refuse the obsolete SSL 3 / TLS 1.0 / 1.1
+    }, app);
+  }
+  return require('http').createServer(app);
+}
+
+// Optional companion listener: when Node terminates TLS, HTTP_REDIRECT_PORT
+// (e.g. 80) answers plain-HTTP visitors with a redirect to the HTTPS port.
+function startHttpRedirect() {
+  const port = process.env.HTTP_REDIRECT_PORT;
+  if (!usingTls || !port) return;
+  const HOST_PATTERN = /^[a-z0-9.-]+$/i;
+  require('http').createServer((req, res) => {
+    const host = (process.env.PUBLIC_HOST || (req.headers.host || '').replace(/:\d+$/, ''));
+    if (!HOST_PATTERN.test(host.replace(/:\d+$/, ''))) { res.writeHead(400); return res.end(); }
+    const target = process.env.PUBLIC_HOST ? host : `${host}${PORT === '443' ? '' : `:${PORT}`}`;
+    res.writeHead(308, { Location: `https://${target}${req.url}` });
+    res.end();
+  }).listen(port, () => console.log(`HTTP→HTTPS redirect listening on :${port}`));
+}
 
 async function startServer() {
-  // Start the HTTP server immediately - the API is available even without DB.
-  app.listen(PORT, () => console.log(`Backend running on http://localhost:${PORT}`));
-  // Ensure PostgreSQL schema + seed data (runs in the background).
-  initDb();
+  createHttpServer().listen(PORT, () => console.log(`Backend running on ${usingTls ? 'https' : 'http'}://localhost:${PORT}`));
+  startHttpRedirect();
+  initDb(); // schema + seed data, in the background
+
+  // Housekeeping: purge expired password-reset links and long-expired refresh
+  // tokens so those tables don't grow forever. Best-effort, never fatal.
+  const cleanupStaleTokens = async () => {
+    try {
+      await require('./models/PasswordReset').deleteExpired();
+      await require('./models/RefreshToken').deleteStale();
+    } catch (err) {
+      console.error('Token cleanup skipped:', err.message);
+    }
+  };
+  setTimeout(cleanupStaleTokens, 30 * 1000);
+  setInterval(cleanupStaleTokens, 24 * 60 * 60 * 1000);
 }
 
 startServer();

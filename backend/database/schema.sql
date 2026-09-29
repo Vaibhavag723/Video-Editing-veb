@@ -27,6 +27,23 @@ CREATE TABLE IF NOT EXISTS password_resets (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- Refresh tokens for the access/refresh session model: the short-lived (15m)
+-- access token proves identity on every API call, while this table backs the
+-- long-lived (30d) refresh token that mints new access tokens without asking
+-- the user to log in again. Like password_resets, only a SHA-256 hash of the
+-- actual token is stored — a DB leak alone can't be used to log in as anyone.
+-- Rotated on every use (old row revoked, new row inserted) so a stolen,
+-- already-used refresh token is detected and the whole chain can be killed.
+CREATE TABLE IF NOT EXISTS refresh_tokens (
+  id         SERIAL PRIMARY KEY,
+  user_id    INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  token_hash TEXT NOT NULL UNIQUE,
+  expires_at TIMESTAMPTZ NOT NULL,
+  revoked_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+ALTER TABLE refresh_tokens ADD COLUMN IF NOT EXISTS rotated_at TIMESTAMPTZ;
+
 -- Creative library: free text templates
 CREATE TABLE IF NOT EXISTS text_templates (
   id       SERIAL PRIMARY KEY,

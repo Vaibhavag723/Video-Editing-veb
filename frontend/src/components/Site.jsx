@@ -165,7 +165,7 @@ function FeatureCards() {
 }
 
 
-export default function Site({ user, onLogin, onSignUp, onOpenEditor, onOpenAdmin, onLogout, onBack, canGoBack }) {
+export default function Site({ user, onLogin, onSignUp, onOpenEditor, onOpenAdmin, onLogout, onLogoutEverywhere, onBack, canGoBack }) {
   const [page, setPage] = useState('home');
   const [pages, setPages] = useState([]);
   const [posts, setPosts] = useState([]);
@@ -226,6 +226,9 @@ export default function Site({ user, onLogin, onSignUp, onOpenEditor, onOpenAdmi
                 <button type="button" className="btn-get primary" onClick={onOpenEditor}>Open editor</button>
                 {user.isAdmin && <button type="button" className="site-btn mini" onClick={onOpenAdmin}>Admin</button>}
                 <button type="button" className="site-btn ghost" onClick={onLogout}>Log out</button>
+                {onLogoutEverywhere && (
+                  <button type="button" className="site-btn ghost" onClick={onLogoutEverywhere} title="Sign out of every browser and device">Sign out all</button>
+                )}
               </>
             ) : (
               <>
