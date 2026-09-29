@@ -142,28 +142,6 @@ function Hero({ onStart, onExplore }) {
   );
 }
 
-/* FlowStep feature cards */
-function FeatureCards() {
-  return (
-    <section className="features">
-      <div className="feat-grid">
-        {FEATURES.map((feature, i) => (
-          <Reveal
-            as="article"
-            key={feature.title}
-            className={`feat ${feature.tone}`}
-            delay={0.05 + i * 0.1}
-          >
-            <span className="icon">{feature.icon}</span>
-            <h3>{feature.title}</h3>
-            <p>{feature.text}</p>
-          </Reveal>
-        ))}
-      </div>
-    </section>
-  );
-}
-
 
 export default function Site({ user, onLogin, onSignUp, onOpenEditor, onOpenAdmin, onLogout, onLogoutEverywhere, onBack, canGoBack }) {
   const [page, setPage] = useState('home');
